@@ -6,6 +6,7 @@ An installable, offline English vocabulary platform based on THE BRIDGE.
 
 - 2,517 word and phrase cards in printed book-page order (pages 2–241).
 - Flashcards and alternating definition / sentence-blank spelling practice.
+- A device-local Continue reading bookmark: study cards save your place automatically; library entries offer a Bookmark button.
 - Red, yellow and green mastery indicators. One correct answer per word counts in each morning, afternoon or evening session; three correct sessions in a row turn green. Wrong answers reset the streak and return the next day.
 - Device-local IndexedDB progress, editable tags, filtered search and JSON backup / restore.
 - Multiple examples on separate lines; American pronunciation in KK notation.
@@ -51,4 +52,5 @@ Audio depends on voices installed on the device. All text content and practice w
 Vocabulary, definitions and examples originate in the user-supplied THE BRIDGE book; the original PDF and personal learning records are excluded from this repository. No rights in the book content are granted by this repository.
 
 American pronunciation data is based on [ipa-dict](https://github.com/open-dict-data/ipa-dict) / CMUdict, converted to KK notation, with supplemental entries. Phrase pronunciations are assembled word by word and do not model connected speech. See [the pronunciation data license](dist/pronunciation-LICENSE.txt). KK uses [e] and [o] for the vowels commonly represented as /eɪ/ and /oʊ/ in IPA.
+
 

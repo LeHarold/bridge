@@ -26,7 +26,9 @@ jobs:
         with:
           node-version: '22'
       - name: Verify learning data and offline behavior
-        run: node verify-v4.mjs
+        run: |
+          node verify-v4.mjs
+          node verify-bookmark.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -34,3 +36,4 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v5
+
