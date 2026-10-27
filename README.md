@@ -6,7 +6,7 @@ An installable, offline English vocabulary platform based on THE BRIDGE.
 
 - 2,517 word and phrase cards in printed book-page order (pages 2–241).
 - Flashcards and alternating definition / sentence-blank spelling practice.
-- A device-local Continue reading bookmark: study cards save your place automatically; library entries offer a Bookmark button.
+- A device-local Continue reading bookmark: use Bookmark on a study card or library entry to save it (green light); press again to remove it. Browsing does not overwrite your saved bookmark.
 - Red, yellow and green mastery indicators. One correct answer per word counts in each morning, afternoon or evening session; three correct sessions in a row turn green. Wrong answers reset the streak and return the next day.
 - Device-local IndexedDB progress, editable tags, filtered search and JSON backup / restore.
 - Multiple examples on separate lines; American pronunciation in KK notation.
