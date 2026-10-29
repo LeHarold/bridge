@@ -1,6 +1,6 @@
 const CACHE_PREFIX='bridge-offline-'+encodeURIComponent(self.registration.scope)+'-';
-const CACHE=CACHE_PREFIX+'github-v4-toggle-bookmark';
-const ASSETS=['./','./index.html','./style.css','./app.js','./logic.js','./questions.js','./learning.js','./pwa.js','./cards.json','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./pronunciation-LICENSE.txt'];
+const CACHE=CACHE_PREFIX+'github-v5-audio-chinese';
+const ASSETS=['./','./index.html','./style.css','./app.js','./logic.js','./questions.js','./learning.js','./library-tools.js','./pwa.js','./cards.json','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./pronunciation-LICENSE.txt'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(ASSETS.map(url=>new Request(url,{cache:'reload'})));await self.skipWaiting()})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith(CACHE_PREFIX)&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));
 self.addEventListener('fetch',event=>{

@@ -29,6 +29,7 @@ jobs:
         run: |
           node verify-v4.mjs
           node verify-bookmark.mjs
+          node verify-library-tools.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -36,4 +37,5 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v5
+
 

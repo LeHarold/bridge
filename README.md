@@ -10,6 +10,8 @@ An installable, offline English vocabulary platform based on THE BRIDGE.
 - Red, yellow and green mastery indicators. One correct answer per word counts in each morning, afternoon or evening session; three correct sessions in a row turn green. Wrong answers reset the streak and return the next day.
 - Device-local IndexedDB progress, editable tags, filtered search and JSON backup / restore.
 - Multiple examples on separate lines; American pronunciation in KK notation.
+- Library playback for each word/phrase and each example using the device English speech engine (not prerecorded audio files).
+- Optional Traditional Chinese translations below the word, definition and examples. The selected English text is sent to MyMemory only when requested; successful translations are stored in a separate device-local IndexedDB database and can be reopened offline. Anonymous daily provider quotas apply; first-time translations need internet. Translation cache is not part of progress export.
 - Print every word in the selected range with definitions, examples and pronunciation.
 - Installable PWA; all learning assets are cached locally after the first online visit.
 
@@ -52,5 +54,6 @@ Audio depends on voices installed on the device. All text content and practice w
 Vocabulary, definitions and examples originate in the user-supplied THE BRIDGE book; the original PDF and personal learning records are excluded from this repository. No rights in the book content are granted by this repository.
 
 American pronunciation data is based on [ipa-dict](https://github.com/open-dict-data/ipa-dict) / CMUdict, converted to KK notation, with supplemental entries. Phrase pronunciations are assembled word by word and do not model connected speech. See [the pronunciation data license](dist/pronunciation-LICENSE.txt). KK uses [e] and [o] for the vowels commonly represented as /eɪ/ and /oʊ/ in IPA.
+
 
 
