@@ -5,13 +5,13 @@ An installable, offline English vocabulary platform based on THE BRIDGE.
 ## Features
 
 - 2,517 word and phrase cards in printed book-page order (pages 2–241).
-- Flashcards and alternating definition / sentence-blank spelling practice.
+- Flashcards plus three randomized four-choice practice modes: Traditional Chinese clue → English, English definition → English, and sentence blank → English. Fresh context sentences are bundled for selected cards, alongside original book examples where suitable. Distractors are selected from similar-looking English headwords.
 - A device-local Continue reading bookmark: use Bookmark on a study card or library entry to save it (green light); press again to remove it. Browsing does not overwrite your saved bookmark.
 - Red, yellow and green mastery indicators. One correct answer per word counts in each morning, afternoon or evening session; three correct sessions in a row turn green. Wrong answers reset the streak and return the next day.
 - Device-local IndexedDB progress, editable tags, filtered search and JSON backup / restore.
 - Multiple examples on separate lines; American pronunciation in KK notation.
 - Library playback for each word/phrase and each example using the device English speech engine (not prerecorded audio files).
-- Optional Traditional Chinese translations below the word, definition and examples. The selected English text is sent to MyMemory only when requested; successful translations are stored in a separate device-local IndexedDB database and can be reopened offline. Anonymous daily provider quotas apply; first-time translations need internet. Translation cache is not part of progress export.
+- Reviewed Traditional Chinese translations are bundled for selected entries and can be viewed offline. The remaining entries still need translation review; there is no background translation request. Translation data is separate from progress export.
 - Print every word in the selected range with definitions, examples and pronunciation.
 - Installable PWA; all learning assets are cached locally after the first online visit.
 
@@ -33,7 +33,7 @@ Requires Node.js 20 or newer:
 node verify-v4.mjs
 ```
 
-The tests cover tag-filter cleanup, search, page ranges, example formatting, pronunciation coverage, full-range printing and offline service-worker responses.
+The existing checks cover tag-filter cleanup, search, page ranges, example formatting, pronunciation coverage, full-range printing and offline service-worker responses.
 
 ## GitHub Pages
 
@@ -47,7 +47,7 @@ Wait for **Ready for offline use**, then select **Install / Offline**. In Chrome
 
 Progress is scoped to a browser and website origin. Before switching from the previous hosting address, export progress there, then import it on the GitHub Pages site. Installing on a different browser does not transfer progress automatically. Clearing site data removes stored progress.
 
-Audio depends on voices installed on the device. All text content and practice work offline.
+Audio depends on voices installed on the device. The bundled word list and practice work offline. Chinese clues are currently available only for entries included in the reviewed translation bundle.
 
 ## Content and pronunciation credits
 
