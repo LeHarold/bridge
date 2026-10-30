@@ -30,6 +30,7 @@ jobs:
           node verify-v4.mjs
           node verify-bookmark.mjs
           node verify-library-tools.mjs
+          node verify-translations.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

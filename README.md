@@ -11,7 +11,7 @@ An installable, offline English vocabulary platform based on THE BRIDGE.
 - Device-local IndexedDB progress, editable tags, filtered search and JSON backup / restore.
 - Multiple examples on separate lines; American pronunciation in KK notation.
 - Library playback for each word/phrase and each example using the device English speech engine (not prerecorded audio files).
-- Reviewed Traditional Chinese translations are bundled for selected entries and can be viewed offline. The remaining entries still need translation review; there is no background translation request. Translation data is separate from progress export.
+- Traditional Chinese word glosses, definitions and aligned example translations are bundled for all 2,517 entries and can be viewed offline. There is no background translation request. Translation data is separate from progress export.
 - Print every word in the selected range with definitions, examples and pronunciation.
 - Installable PWA; all learning assets are cached locally after the first online visit.
 
@@ -31,6 +31,7 @@ Requires Node.js 20 or newer:
 
 ```sh
 node verify-v4.mjs
+node verify-translations.mjs
 ```
 
 The existing checks cover tag-filter cleanup, search, page ranges, example formatting, pronunciation coverage, full-range printing and offline service-worker responses.
@@ -47,7 +48,7 @@ Wait for **Ready for offline use**, then select **Install / Offline**. In Chrome
 
 Progress is scoped to a browser and website origin. Before switching from the previous hosting address, export progress there, then import it on the GitHub Pages site. Installing on a different browser does not transfer progress automatically. Clearing site data removes stored progress.
 
-Audio depends on voices installed on the device. The bundled word list and practice work offline. Chinese clues are currently available only for entries included in the reviewed translation bundle.
+Audio depends on voices installed on the device. The bundled word list and practice work offline. All 2,517 cards have preloaded Traditional Chinese clues.
 
 ## Content and pronunciation credits
 
