@@ -15,5 +15,5 @@ function clozeExample(card){
  re.lastIndex=0;
  return {text:example.replace(re,'_____'),answers};
 }
-export function cloze(card,extraSentences=[]){const examples=[...extraSentences,...examplesFor(card)];for(const example of examples){for(const word of card.answers||[card.word]){const result=clozeExample({...card,word,example});if(result)return result}}return null}
+export function cloze(card,extraSentences=[]){const explicit=extraSentences.find(s=>typeof s==='object'&&s.text?.includes('_____')&&s.answers?.length);if(explicit)return explicit;const examples=[...extraSentences,...examplesFor(card)];for(const example of examples){for(const word of card.answers||[card.word]){const result=clozeExample({...card,word,example});if(result)return result}}return null}
 export function question(card,preferExample){const answers=card.answers||[card.word];const gap=preferExample?cloze(card):null;return gap?{kind:'Sentence blank',text:gap.text,answers:[...answers,...gap.answers]}:{kind:'Definition',text:card.meaning,answers}}
