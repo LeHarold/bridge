@@ -18,9 +18,10 @@ const document={querySelectorAll:()=>buttons,getElementById:id=>{lastScroll=id;r
 const $=()=>element;
 function render(){queue=selected();index=0}
 function showCard(){}
+function syncFloatingTools(){}
 ${functions}
 assert(bookmarkCard().includes('Continue reading'));
-toggleBookmark(cards[0],'library');assert.equal(bookmark.id,'b1');assert.equal(buttons[0]['aria-pressed'],'true');assert(buttons[0].innerHTML.includes('Bookmarked'));
+toggleBookmark(cards[0],'library');assert(bookmarkCard().includes('Word 1'));assert.equal(bookmark.id,'b1');assert.equal(buttons[0]['aria-pressed'],'true');assert(buttons[0].innerHTML.includes('Bookmarked'));
 toggleBookmark(cards[0],'library');assert.equal(bookmark,null);assert.equal(JSON.parse(memory[BOOKMARK_KEY]),null);assert.equal(buttons[0]['aria-pressed'],'false');
 toggleBookmark(cards[0],'library');toggleBookmark(cards[1],'library');assert.equal(bookmark.id,'b2');assert.equal(buttons[0]['aria-pressed'],'false');assert.equal(buttons[1]['aria-pressed'],'true');
 assert(bookmarkButton(cards[1]).includes('aria-pressed="true"'));
