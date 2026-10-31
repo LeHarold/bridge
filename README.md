@@ -58,3 +58,7 @@ American pronunciation data is based on [ipa-dict](https://github.com/open-dict-
 
 
 
+
+## Sentence selection tools
+
+Library entries show stable book-order numbers. Selecting English text in an example opens a floating grammar guide with automatic subject/verb/predicate estimates, word classes, pattern notes and matching preloaded Chinese translation. The bundled compromise parser works offline; its estimates may be inaccurate for complex or malformed source sentences. The optional Detailed AI analysis link opens ChatGPT with the selected sentence. See dist/compromise-LICENSE.txt for the parser license.

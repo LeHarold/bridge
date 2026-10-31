@@ -24,5 +24,5 @@ vm.runInNewContext(app.slice(app.indexOf('const translations='),app.indexOf('fun
 translations.set('b6',{open:true,data:{word:'遵守',meaning:'服從',examples:['他們遵守規則。','我們遵從決定。']}});
 const html=row(card,true);assert(html.includes('遵守'));assert(html.includes('服從'));assert(html.indexOf('他們遵守規則。')<html.indexOf('我們遵從決定。'));assert.equal((html.match(/audioButton/g)||[]).length,3);
 translations.set('b6',{open:false,data:{word:'遵守'}});assert(row(card,true).includes('visibility:hidden'));assert(row(card,true).includes('遵守'));
-`,{assert,card,createTranslator:()=>()=>{},translationCache:()=>({}),createSpeaker:()=>({}),esc:s=>String(s??'').replaceAll('<','&lt;'),phoneticsHtml:()=>'',rec:()=>({tags:[]}),lamp:()=>''});
+`,{assert,card,cards:[card],createTranslator:()=>()=>{},translationCache:()=>({}),createSpeaker:()=>({}),esc:s=>String(s??'').replaceAll('<','&lt;'),phoneticsHtml:()=>'',rec:()=>({tags:[]}),lamp:()=>''});
 console.log('PASS: separate word/example audio, stop toggle, English voice, translations aligned under source, hide/show, cached offline reuse, request deduplication, source changes, long text, limits and failures');
