@@ -14,3 +14,14 @@
 .bookmark-light{display:inline-block;width:9px;height:9px;border-radius:50%;background:#adb5ae;margin-right:8px;vertical-align:middle}.bookmarkButton.is-bookmarked{background:#e4f0d1;border-color:#789c54;color:#294b23}.is-bookmarked .bookmark-light{background:#548b26;box-shadow:0 0 0 3px #548b2622}.bookmarkButton:focus-visible{outline:2px solid #548b26;outline-offset:3px}
 
 .chinese-translation{font-size:14px;line-height:1.8;color:#325d51;margin:6px 0 12px;padding-left:10px;border-left:2px solid #c3d4a8}.audioButton{font-size:11px;padding:6px 10px;margin:5px 0 5px 8px;white-space:nowrap}.audioButton[aria-pressed="true"]{background:#dceaca}.translationButton{margin:10px 8px 8px 0}.translation-status{font-size:11px;margin:0 0 10px}.translation-status:empty{display:none}.library-sentence{margin-bottom:14px}
+
+/* Translation slots keep identical geometry when revealed or concealed. */
+.library-entry{overflow-anchor:none}.translationButton{min-width:205px}.translation-status{min-height:18px}
+@media(max-width:600px){
+ aside{position:sticky;top:0;z-index:30;padding:5px 10px;padding-top:max(5px,env(safe-area-inset-top));height:auto;border-right:0;border-bottom:1px solid var(--line);transition:transform .18s ease;box-shadow:0 2px 8px #183d3610}
+ aside .brand{display:none}aside nav{margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}aside nav button{text-align:center;padding:11px 3px;font-size:11px;min-height:40px;white-space:nowrap}
+ body.mobile-nav-hidden aside{transform:translateY(-110%);pointer-events:none}body.mobile-nav-hidden aside:focus-within{transform:none;pointer-events:auto}
+ header{padding:7px 0;justify-content:flex-end;min-height:26px}header>span:first-child{display:none}header #date{max-width:100%;font-size:9px}.app-toolbar{padding:8px 0;gap:8px}.eyebrow{margin-top:22px}
+ .library-entry{scroll-margin-top:65px}
+}
+@media(prefers-reduced-motion:reduce){aside{transition:none}}
