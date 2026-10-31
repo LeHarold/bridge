@@ -25,3 +25,13 @@
  .library-entry{scroll-margin-top:65px}
 }
 @media(prefers-reduced-motion:reduce){aside{transition:none}}
+
+/* Place the word gloss beside its English headword without changing toggle geometry. */
+.library-entry .word-heading{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:10px;line-height:1.45}
+.library-entry .word-chinese{color:#325d51;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.library-entry .word-row{padding:12px 0;line-height:1.5}
+.library-entry{padding-bottom:12px}.library-entry .phonetic{margin:3px 0;font-size:12px;line-height:1.45;display:inline-block}
+.library-entry .chinese-translation{line-height:1.5;margin:3px 0 6px;padding-left:8px}
+.library-entry .library-example{margin-top:8px;line-height:1.5}.library-entry .example-line{line-height:1.5;margin:4px 0}.library-entry .library-sentence{margin-bottom:8px}
+.library-entry .translationButton{margin:6px 8px 5px 0;padding:9px 13px}.library-entry .translation-status{min-height:16px;line-height:1.4;margin:0 0 6px}
+@media(max-width:600px){.library-entry .word-row{gap:6px}.library-entry .word-heading{gap:8px}}
