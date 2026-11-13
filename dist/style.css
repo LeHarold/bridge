@@ -16,7 +16,7 @@
 .chinese-translation{font-size:14px;line-height:1.8;color:#325d51;margin:6px 0 12px;padding-left:10px;border-left:2px solid #c3d4a8}.audioButton{font-size:11px;padding:6px 10px;margin:5px 0 5px 8px;white-space:nowrap}.audioButton[aria-pressed="true"]{background:#dceaca}.translationButton{margin:10px 8px 8px 0}.translation-status{font-size:11px;margin:0 0 10px}.translation-status:empty{display:none}.library-sentence{margin-bottom:14px}
 
 /* Translation slots keep identical geometry when revealed or concealed. */
-.library-entry{overflow-anchor:none}.translationButton{min-width:205px}.translation-status{min-height:18px}
+.library-entry{overflow-anchor:none}
 @media(max-width:600px){
  aside{position:sticky;top:0;z-index:30;padding:5px 10px;padding-top:max(5px,env(safe-area-inset-top));height:auto;border-right:0;border-bottom:1px solid var(--line);transition:transform .18s ease;box-shadow:0 2px 8px #183d3610}
  aside .brand{display:none}aside nav{margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}aside nav button{text-align:center;padding:11px 3px;font-size:11px;min-height:40px;white-space:nowrap}
@@ -33,7 +33,7 @@
 .library-entry{padding-bottom:12px}.library-entry .phonetic{margin:3px 0;font-size:12px;line-height:1.45;display:inline-block}
 .library-entry .chinese-translation{line-height:1.5;margin:3px 0 6px;padding-left:8px}
 .library-entry .library-example{margin-top:8px;line-height:1.5}.library-entry .example-line{line-height:1.5;margin:4px 0}.library-entry .library-sentence{margin-bottom:8px}
-.library-entry .translationButton{margin:6px 8px 5px 0;padding:9px 13px}.library-entry .translation-status{min-height:16px;line-height:1.4;margin:0 0 6px}
+
 @media(max-width:600px){.library-entry .word-row{gap:6px}.library-entry .word-heading{gap:8px}}
 
 .floating-tools{position:fixed;right:22px;bottom:max(20px,env(safe-area-inset-bottom));z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}.tools-trigger{border-radius:30px;min-height:48px;box-shadow:0 4px 18px #183d3633}.quick-tools-panel{background:#fffef9;border:1px solid var(--line);padding:10px;border-radius:13px;box-shadow:0 5px 24px #183d3622;display:grid;gap:8px;max-width:calc(100vw - 32px)}.quick-tools-panel[hidden]{display:none}.quick-tools-panel button{text-align:left;min-height:44px}#grammarDialog label{display:block;font-size:13px;margin-top:14px}#grammarDialog select,#grammarDialog textarea{display:block;width:100%;margin-top:6px;max-width:100%}#grammarDialog textarea{font:inherit;line-height:1.6;padding:12px;border:1px solid var(--line);border-radius:7px;resize:vertical;background:#fffef9;color:var(--ink)}#grammarDialog .actions{justify-content:flex-start}footer{padding-bottom:90px}@media(max-width:600px){.floating-tools{right:14px}.tools-trigger{padding:12px 17px}}@media print{.floating-tools{display:none!important}}
@@ -45,3 +45,23 @@
 .quick-tag{padding:3px 9px;font-size:.8rem;overflow-wrap:anywhere}
 .quick-tag[aria-pressed="true"]{background:#e5f1d9;border-color:#77a15d;color:#23401f}
 .choice-gloss{color:#365332;font-weight:500}
+
+#content > h1{font-size:26px;letter-spacing:-.5px;margin:10px 0}
+#libraryResults > .panel{padding:0 12px}
+.library-entry{padding-bottom:5px}
+.library-entry .word-row{padding:5px 0 2px;line-height:1.3}
+.library-entry .word-heading,.library-entry .word-chinese{line-height:1.3}
+.library-entry .phonetic{margin:1px 0;line-height:1.3}
+.library-entry .chinese-translation{line-height:1.3;margin:1px 0 2px;padding-left:5px;font-size:13px}
+.library-entry .library-example{margin-top:3px;line-height:1.3}
+.library-entry .example-line{line-height:1.3;margin:1px 0}
+.library-entry .library-sentence{margin:0}
+.library-entry .audioButton{padding:2px 6px;margin:1px 0 1px 4px}
+.library-actions{display:flex;gap:4px;align-items:center}
+.library-actions .library-icon{display:grid;place-items:center;width:32px;height:30px;padding:0;margin:0}
+.library-icon[aria-pressed="true"],.library-icon[aria-expanded="true"]{background:#e5f1d9;border-color:#77a15d;color:#23401f}
+.library-icon.is-bookmarked svg{fill:currentColor}
+.library-tag-panel{margin-top:4px}
+.library-tag-panel .quick-tags{margin:0 0 4px}
+.library-tag-panel .tags-input,.library-tag-panel .save-tags{padding:5px 8px;font-size:13px}
+.library-tag-panel .tags-input{max-width:75%}
