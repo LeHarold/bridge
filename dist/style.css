@@ -65,3 +65,24 @@
 .library-tag-panel .quick-tags{margin:0 0 4px}
 .library-tag-panel .tags-input,.library-tag-panel .save-tags{padding:5px 8px;font-size:13px}
 .library-tag-panel .tags-input{max-width:75%}
+
+.quiz-card{margin:12px auto}
+.quiz-card .progress{height:4px;margin:6px 0}
+.quiz-card .flash{min-height:0;padding:12px}
+.quiz-card .meaning{font-size:18px;line-height:1.3;margin:0 0 8px}
+.quiz-card .choice-options{gap:5px;margin:0 auto}
+.quiz-card .choice-option{min-height:44px;padding:6px 9px;gap:5px;align-items:center;line-height:1.25;overflow-wrap:anywhere}
+.quiz-card .choice-letter{flex-basis:17px}
+.quiz-card .feedback{margin-top:6px;padding:7px 9px;font-size:13px;line-height:1.35}
+.quiz-card .feedback .example-line{margin:2px 0;line-height:1.35}
+.quiz-card > .actions{margin:6px 0}
+.quiz-card > .panel{padding:8px 12px}
+@media(max-width:600px){
+ #content:has(.quiz-card) .filters,#content:has(.quiz-card) > .actions{gap:5px;margin:6px 0}
+ #content:has(.quiz-card) .filters :is(input,select),#content:has(.quiz-card) > .actions .btn{padding:6px 8px}
+ #content:has(.quiz-card) .practice-modes{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .quiz-card{scroll-margin-top:56px}
+ .quiz-card > .bookmarkButton{padding:5px 8px}
+ .quiz-card #grading:has(#next){min-height:50px}
+ .quiz-card #next{position:fixed;z-index:55;left:max(14px,env(safe-area-inset-left));bottom:max(14px,env(safe-area-inset-bottom));min-height:44px;box-shadow:0 4px 18px #183d3633}
+}
