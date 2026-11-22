@@ -31,6 +31,11 @@ jobs:
           node verify-bookmark.mjs
           node verify-library-tools.mjs
           node verify-translations.mjs
+      - name: Generate review audio
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq espeak-ng ffmpeg
+          python3 scripts/generate-review-audio.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
