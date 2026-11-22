@@ -157,6 +157,29 @@ function jumpToPlayingWord(moveFocus=true){
  if(moveFocus)entry?.focus({preventScroll:true});
  entry?.scrollIntoView({block:'start'});
 }
+function playFromClickedWord(event){
+ if(!followAudioWord||event.target.closest('button,a,input,select,textarea,label')||window.getSelection()?.toString())return;
+ const entry=event.target.closest('.library-entry');
+ if(!entry)return;
+ const id=entry.id.slice('word-'.length);
+ if(rangePlayback){
+  const index=rangePlayback.words.findIndex(card=>card.id===id);
+  if(index<0)return;
+  clearTimeout(rangePlayback.timer);
+  speaker.stop();
+  Object.assign(rangePlayback,{index,section:0,paused:false});
+  $('#listenRange').textContent='Pause listening';
+  rangePlayback.play();
+  return;
+ }
+ const player=$('#backgroundAudio');
+ if(!player?.src)return;
+ const chapter=backgroundAudioChapters.find(item=>item.card.id===id);
+ if(!chapter)return;
+ player.currentTime=chapter.start;
+ updateBackgroundProgress();
+ void playBackgroundAudio(player);
+}
 function updateBackgroundAudioLabel(){
  const button=$('#prepareBackgroundAudio'),player=$('#backgroundAudio');
  if(!button||!player)return;
@@ -376,7 +399,7 @@ function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(card
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
+function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#libraryResults').onclick=playFromClickedWord;$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
