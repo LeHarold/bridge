@@ -11,8 +11,9 @@ export function validFilters(filters,cards,records){
 }
 export function matchingCards(cards,records,filters,status){
  const end=filters.end?cards.findIndex(c=>c.id===filters.end):cards.length-1;
+ const initial=(filters.initial||'').toUpperCase();
  const query=(filters.search||'').trim().toLowerCase();
- return cards.filter((c,i)=>c.page>=filters.from&&c.page<=filters.to&&i<=end&&(!filters.tag||(records[c.id]?.tags||[]).includes(filters.tag))&&(!filters.state||status(records[c.id]||{})===filters.state)&&(!query||(c.word+' '+c.meaning+' '+examplesFor(c).join(' ')).toLowerCase().includes(query)));
+ return cards.filter((c,i)=>c.page>=filters.from&&c.page<=filters.to&&i<=end&&(!initial||c.word.trimStart().toUpperCase().startsWith(initial))&&(!filters.tag||(records[c.id]?.tags||[]).includes(filters.tag))&&(!filters.state||status(records[c.id]||{})===filters.state)&&(!query||(c.word+' '+c.meaning+' '+examplesFor(c).join(' ')).toLowerCase().includes(query)));
 }
 export function printHtml(cards,records,filters,status){
  const range=matchingCards(cards,records,filters,status);
