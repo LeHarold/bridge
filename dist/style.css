@@ -92,3 +92,5 @@
 #followAudioWord[aria-pressed=true],.library-entry.is-playing-word{background:#e5f1d9}
 
 #toolsAudio:not([hidden]){display:grid;gap:6px}#toolsAudio label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}#toolsAudio select{padding:5px 8px}
+
+#libraryLoadMarker{height:1px}
