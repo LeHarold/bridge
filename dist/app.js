@@ -67,6 +67,7 @@ async function prepareBackgroundAudio(){
  player.pause();
  button.disabled=true;
  button.textContent='Preparing audio…';
+ syncToolsAudio();
  try{
   const parts=[];
   for(let offset=0;offset<words.length;offset+=12){
@@ -100,6 +101,7 @@ async function prepareBackgroundAudio(){
   if(button.isConnected){
    updateBackgroundAudioLabel();
    button.disabled=!selected().length;
+   syncToolsAudio();
   }
  }
 }
@@ -159,6 +161,7 @@ function updateBackgroundAudioLabel(){
  const button=$('#prepareBackgroundAudio'),player=$('#backgroundAudio');
  if(!button||!player)return;
  button.textContent=!player.paused?'Pause listening':player.currentTime>0&&!player.ended?'Resume listening':'Listen to results';
+ syncToolsAudio();
 }
 function stopRangePlayback(){
  if(!rangePlayback)return;
@@ -368,12 +371,12 @@ function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.tra
   }
  });
 }
-function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;if(!$('#prepareBackgroundAudio').textContent.startsWith('Preparing audio'))$('#prepareBackgroundAudio').disabled=!count;bindLibraryResults()}
+function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;if(!$('#prepareBackgroundAudio').textContent.startsWith('Preparing audio'))$('#prepareBackgroundAudio').disabled=!count;bindLibraryResults();syncToolsAudio()}
 function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,initial:view==='library'?filters.initial:''},status,offlineTranslations);return selected().length}
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'))};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
+function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
@@ -389,10 +392,35 @@ window.addEventListener('scroll',()=>{if(navigationFrame)return;navigationFrame=
 phoneNavigation.addEventListener('change',()=>{document.body.classList.remove('mobile-nav-hidden');navigationY=window.scrollY;navigationTravel=0});
 
 const floatingTools=document.createElement('div');floatingTools.className='floating-tools';
-floatingTools.innerHTML=`<div id="quickToolsPanel" class="quick-tools-panel" hidden><button class="btn outline" id="toggleAllChinese" aria-pressed="false">Show all Chinese</button><button class="btn outline" id="openBookmark"><span class="bookmark-light" aria-hidden="true"></span>Reading bookmark</button></div><button class="btn tools-trigger" id="quickTools" aria-expanded="false" aria-controls="quickToolsPanel" aria-label="Quick tools">☷ <span>Tools</span></button>`;
+floatingTools.innerHTML=`<div id="quickToolsPanel" class="quick-tools-panel" hidden><div id="toolsAudio" hidden><button class="btn outline" id="toolsAudioPlay">Listen to results</button><label>Speed <select id="toolsAudioSpeed" aria-label="Background audio speed"><option value="1">1×</option><option value="0.9">0.9×</option><option value="0.8">0.8×</option></select></label><button class="btn outline" id="toolsFollowAudio" aria-pressed="false">Follow playback</button></div><button class="btn outline" id="toolsPageTop">Back to top</button><button class="btn outline" id="toggleAllChinese" aria-pressed="false">Show all Chinese</button><button class="btn outline" id="openBookmark"><span class="bookmark-light" aria-hidden="true"></span>Reading bookmark</button></div><button class="btn tools-trigger" id="quickTools" aria-expanded="false" aria-controls="quickToolsPanel" aria-label="Quick tools">☷ <span>Tools</span></button>`;
 document.body.append(floatingTools);
-function syncFloatingTools(){const bookmarkTool=document.querySelector('#openBookmark');if(bookmarkTool){bookmarkTool.classList.toggle('is-bookmarked',!!bookmark?.id);bookmarkTool.setAttribute('aria-label',bookmark?.id?'Reading bookmark saved':'Reading bookmark')}const all=cards.length>0&&cards.every(c=>translations.get(c.id)?.open);const b=document.querySelector('#toggleAllChinese');if(b){b.textContent=all?'Hide all Chinese':'Show all Chinese';b.setAttribute('aria-pressed',String(all))}}
+function syncFloatingTools(){syncToolsAudio();const bookmarkTool=document.querySelector('#openBookmark');if(bookmarkTool){bookmarkTool.classList.toggle('is-bookmarked',!!bookmark?.id);bookmarkTool.setAttribute('aria-label',bookmark?.id?'Reading bookmark saved':'Reading bookmark')}const all=cards.length>0&&cards.every(c=>translations.get(c.id)?.open);const b=document.querySelector('#toggleAllChinese');if(b){b.textContent=all?'Hide all Chinese':'Show all Chinese';b.setAttribute('aria-pressed',String(all))}}
 function closeFloatingTools(){document.querySelector('#quickToolsPanel').hidden=true;document.querySelector('#quickTools').setAttribute('aria-expanded','false')}
+function syncToolsAudio(){
+ const panel=$('#toolsAudio'),mainPlay=$('#prepareBackgroundAudio');
+ if(!panel)return;
+ panel.hidden=!mainPlay;
+ if(!mainPlay)return;
+ const play=$('#toolsAudioPlay');
+ play.textContent=mainPlay.textContent;
+ play.disabled=mainPlay.disabled;
+ $('#toolsAudioSpeed').value=String(backgroundSpeed);
+ $('#toolsFollowAudio').setAttribute('aria-pressed',String(followAudioWord));
+}
+function backToPageTop(){
+ closeFloatingTools();
+ document.body.classList.remove('mobile-nav-hidden');
+ window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+}
+$('#toolsPageTop').onclick=backToPageTop;
+$('#toolsAudioPlay').onclick=()=>$('#prepareBackgroundAudio')?.click();
+$('#toolsAudioSpeed').onchange=e=>{
+ const select=$('#backgroundSpeed');
+ if(!select)return;
+ select.value=e.target.value;
+ select.dispatchEvent(new Event('change'));
+};
+$('#toolsFollowAudio').onclick=()=>$('#followAudioWord')?.click();
 let lastToolsTap=-Infinity;
 const toolsButton=document.querySelector('#quickTools');
 toolsButton.style.touchAction='manipulation';
@@ -400,9 +428,7 @@ toolsButton.onclick=event=>{
  const now=performance.now();
  if(event.detail>0&&now-lastToolsTap<=350){
   lastToolsTap=-Infinity;
-  closeFloatingTools();
-  document.body.classList.remove('mobile-nav-hidden');
-  window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+  backToPageTop();
   return;
  }
  lastToolsTap=event.detail>0?now:-Infinity;
