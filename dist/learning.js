@@ -13,7 +13,8 @@ export function matchingCards(cards,records,filters,status,translations={}){
  const end=filters.end?cards.findIndex(c=>c.id===filters.end):cards.length-1;
  const initial=(filters.initial||'').toUpperCase();
  const query=(filters.search||'').trim().toLowerCase();
- return cards.filter((c,i)=>c.page>=filters.from&&c.page<=filters.to&&i<=end&&(!initial||c.word.trimStart().toUpperCase().startsWith(initial))&&(!filters.tag||(records[c.id]?.tags||[]).includes(filters.tag))&&(!filters.state||status(records[c.id]||{})===filters.state)&&(!query||[translations[c.id]?.word,translations[c.id]?.meaning,...(translations[c.id]?.examples||[])].some(value=>value?.toLowerCase().includes(query))||(c.word+' '+c.meaning+' '+examplesFor(c).join(' ')).toLowerCase().includes(query)));
+ const matches=cards.filter((c,i)=>c.page>=filters.from&&c.page<=filters.to&&i<=end&&(!initial||c.word.trimStart().toUpperCase().startsWith(initial))&&(!filters.tag||(records[c.id]?.tags||[]).includes(filters.tag))&&(!filters.state||status(records[c.id]||{})===filters.state)&&(!query||[translations[c.id]?.word,translations[c.id]?.meaning,...(translations[c.id]?.examples||[])].some(value=>value?.toLowerCase().includes(query))||(c.word+' '+c.meaning+' '+examplesFor(c).join(' ')).toLowerCase().includes(query)));
+ return filters.order==='reverse'?matches.reverse():matches;
 }
 export function printHtml(cards,records,filters,status,translations={}){
  const range=matchingCards(cards,records,filters,status,translations);

@@ -17,10 +17,21 @@ config = SynthesisConfig(length_scale=1.12)
 def render(card):
     sections = [card["word"], card["meaning"], *card.get("examples", [])]
     phrases = [section.strip() for section in sections if section.strip()]
-    text = " ".join(phrase if phrase.endswith((".", "!", "?")) else phrase + "." for phrase in phrases)
     wav = io.BytesIO()
+    offsets = []
+    sample_rate = voice.config.sample_rate
+    frames = 0
     with wave.open(wav, "wb") as stream:
-        voice.synthesize_wav(text, stream, syn_config=config)
+        stream.setparams((1, 2, sample_rate, 0, "NONE", "not compressed"))
+        for phrase in phrases:
+            offsets.append(frames / sample_rate)
+            for chunk in voice.synthesize(phrase, syn_config=config):
+                pcm = chunk.audio_int16_bytes
+                stream.writeframesraw(pcm)
+                frames += len(pcm) // 2
+            gap = sample_rate // 4
+            stream.writeframesraw(bytes(gap * 2))
+            frames += gap
     # Uniform frames without per-file tags or seek headers can be joined in the browser.
     subprocess.run(
         ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", "pipe:0",
@@ -28,7 +39,9 @@ def render(card):
          "-write_xing", "0", "-id3v2_version", "0", str(output / (card["id"] + ".mp3"))],
         input=wav.getvalue(), check=True,
     )
+    return card['id'], offsets
 
 
 with ThreadPoolExecutor(max_workers=2) as pool:
-    list(pool.map(render, cards))
+    timings = dict(pool.map(render, cards))
+(output / 'timings.json').write_text(json.dumps(timings, separators=(',', ':')), encoding='utf-8')
