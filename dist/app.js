@@ -93,7 +93,20 @@ function stopRangePlayback(){
  if(status)status.textContent='';
 }
 function toggleRangePlayback(){
- if(rangePlayback){stopRangePlayback();return}
+ if(rangePlayback){
+  const playback=rangePlayback;
+  playback.paused=!playback.paused;
+  $('#listenRange').textContent=playback.paused?'Resume listening':'Pause listening';
+  if(playback.paused){
+   clearTimeout(playback.timer);
+   speaker.pause();
+  }else if(playback.speaking){
+   speaker.resume();
+  }else{
+   playback.play();
+  }
+  return;
+ }
  const words=selected();
  if(!words.length)return;
  $('#backgroundAudio')?.pause();
@@ -101,11 +114,11 @@ function toggleRangePlayback(){
   button.textContent='▷ Listen';
   button.setAttribute('aria-pressed','false');
  });
- const playback={words,index:0,section:0,timer:null};
+ const playback={words,index:0,section:0,timer:null,paused:false,speaking:false,play};
  rangePlayback=playback;
- $('#listenRange').textContent='Stop listening';
+ $('#listenRange').textContent='Pause listening';
  function play(){
-  if(rangePlayback!==playback)return;
+  if(rangePlayback!==playback||playback.paused)return;
   const card=playback.words[playback.index];
   if(!card){stopRangePlayback();return}
   const sections=[
@@ -116,15 +129,17 @@ function toggleRangePlayback(){
   const section=sections[playback.section];
   $('#rangeAudioStatus').textContent=(playback.index+1)+' / '+words.length+' · '+card.word+' · '+section.label;
   try{
+   playback.speaking=true;
    speaker.speak(section.text,'range:'+card.id+':'+playback.section,undefined,error=>{
     if(rangePlayback!==playback)return;
     if(error){stopRangePlayback();toast('Playback unavailable.');return}
+    playback.speaking=false;
     playback.section++;
     if(playback.section===sections.length){
      playback.index++;
      playback.section=0;
     }
-    playback.timer=setTimeout(play,playback.section===0?700:400);
+    if(!playback.paused)playback.timer=setTimeout(play,playback.section===0?700:400);
    });
   }catch(error){stopRangePlayback();toast(error.message)}
  }

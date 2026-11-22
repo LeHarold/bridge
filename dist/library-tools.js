@@ -43,7 +43,7 @@ export function translationCache(){
 }
 export function createSpeaker({synth=globalThis.speechSynthesis,Utterance=globalThis.SpeechSynthesisUtterance}={}){
  let active=null;
- return {stop(){synth?.cancel();active=null},speak(text,id,changed=()=>{},finished=()=>{}){
+ return {stop(){active=null;synth?.cancel();synth?.resume?.()},pause(){synth?.pause()},resume(){synth?.resume()},speak(text,id,changed=()=>{},finished=()=>{}){
   if(!synth||!Utterance)throw Error('Speech is not supported in this browser.');
   const previous=active;synth.cancel();active=null;changed(null);
   if(previous===id)return;

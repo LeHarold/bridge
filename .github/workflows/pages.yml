@@ -34,8 +34,11 @@ jobs:
       - name: Generate review audio
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq espeak-ng ffmpeg
-          python3 scripts/generate-review-audio.py
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m venv .review-voice
+          .review-voice/bin/pip install 'piper-tts==1.4.1'
+          .review-voice/bin/python -m piper.download_voices en_US-lessac-medium
+          .review-voice/bin/python scripts/generate-review-audio.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
