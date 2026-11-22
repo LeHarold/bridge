@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -17,6 +18,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      REVIEW_VOICE: en_US-lessac-medium
+      REVIEW_PIPER_VERSION: '1.4.1'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -31,14 +35,86 @@ jobs:
           node verify-bookmark.mjs
           node verify-library-tools.mjs
           node verify-translations.mjs
+      - name: Fingerprint review audio inputs
+        id: audio-inputs
+        run: |
+          cat > "$RUNNER_TEMP/review-audio-key.mjs" <<'JS'
+          import {createHash} from 'node:crypto';
+          import {readFileSync} from 'node:fs';
+          const [cardsFile, generatorFile] = process.argv.slice(2);
+          const cards = JSON.parse(readFileSync(cardsFile, 'utf8'));
+          const spoken = cards.map(({id, word, meaning, examples = []}) => [
+            id, [word, meaning, ...examples].map(text => text.trim()).filter(Boolean)
+          ]).sort(([left], [right]) => left.localeCompare(right));
+          console.log(createHash('sha256').update(JSON.stringify([
+            process.env.REVIEW_VOICE, process.env.REVIEW_PIPER_VERSION,
+            readFileSync(generatorFile, 'utf8'), spoken
+          ])).digest('hex'));
+          JS
+          key=$(node "$RUNNER_TEMP/review-audio-key.mjs" dist/cards.json scripts/generate-review-audio.py)
+          echo "key=review-audio-v1-$key" >> "$GITHUB_OUTPUT"
+      - name: Restore review audio
+        id: audio-cache
+        uses: actions/cache@v4
+        with:
+          path: dist/review-audio
+          key: ${{ steps.audio-inputs.outputs.key }}
+      - name: Check whether the published audio matches
+        id: audio-seed
+        if: steps.audio-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          SEED_COMMIT: 9258b77a7951bb23efb1c0e8d50542e5c6590e1a
+          CURRENT_KEY: ${{ steps.audio-inputs.outputs.key }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$SEED_COMMIT"
+          git show "$SEED_COMMIT:dist/cards.json" > "$RUNNER_TEMP/seed-cards.json"
+          git show "$SEED_COMMIT:scripts/generate-review-audio.py" > "$RUNNER_TEMP/seed-generator.py"
+          seed=$(REVIEW_VOICE=en_US-lessac-medium REVIEW_PIPER_VERSION=1.4.1 node "$RUNNER_TEMP/review-audio-key.mjs" "$RUNNER_TEMP/seed-cards.json" "$RUNNER_TEMP/seed-generator.py")
+          if [[ "review-audio-v1-$seed" == "$CURRENT_KEY" ]]; then
+            echo 'matches=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download the previous Pages artifact
+        id: audio-artifact
+        if: steps.audio-seed.outputs.matches == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          run-id: 44988405035
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/previous-pages
+      - name: Reuse the published review audio
+        id: reuse-audio
+        if: steps.audio-artifact.outcome == 'success'
+        continue-on-error: true
+        run: |
+          tar -xf "$RUNNER_TEMP/previous-pages/artifact.tar" -C dist ./review-audio
+          test -s dist/review-audio/timings.json
+          echo 'reused=true' >> "$GITHUB_OUTPUT"
       - name: Generate review audio
+        if: steps.audio-cache.outputs.cache-hit != 'true' && steps.reuse-audio.outputs.reused != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           python3 -m venv .review-voice
-          .review-voice/bin/pip install 'piper-tts==1.4.1'
-          .review-voice/bin/python -m piper.download_voices en_US-lessac-medium
+          .review-voice/bin/pip install "piper-tts==$REVIEW_PIPER_VERSION"
+          .review-voice/bin/python -m piper.download_voices "$REVIEW_VOICE"
           .review-voice/bin/python scripts/generate-review-audio.py
+      - name: Verify review audio and subtitle timings
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync, statSync} from 'node:fs';
+          const cards = JSON.parse(readFileSync('dist/cards.json', 'utf8'));
+          const timings = JSON.parse(readFileSync('dist/review-audio/timings.json', 'utf8'));
+          for (const {id, word, meaning, examples = []} of cards) {
+            const count = [word, meaning, ...examples].filter(text => text.trim()).length;
+            if (timings[id]?.length !== count || !statSync(`dist/review-audio/${id}.mp3`).size) {
+              throw new Error(`Incomplete review audio for ${id}`);
+            }
+          }
+          console.log(`Verified ${cards.length} review audio files and their subtitle timings.`);
+          JS
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
