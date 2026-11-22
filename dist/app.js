@@ -49,11 +49,19 @@ function paintTranslation(c){
 function toggleTranslation(c){let t=translations.get(c.id);if(!t){t={open:false,data:offlineTranslations[c.id]||null};translations.set(c.id,t)}t.open=!t.open;paintTranslation(c)}
 let rangePlayback=null;
 let backgroundAudioUrl;
+let backgroundAudioScope;
 async function prepareBackgroundAudio(){
  const button=$('#prepareBackgroundAudio');
  const player=$('#backgroundAudio');
  const words=selected();
  if(!words.length)return;
+ const scope=words.map(card=>card.id).join(',');
+ if(player.src&&backgroundAudioScope===scope){
+  if(player.paused)await playBackgroundAudio(player);
+  else player.pause();
+  return;
+ }
+ player.pause();
  button.disabled=true;
  button.textContent='Preparing audio…';
  try{
@@ -72,23 +80,37 @@ async function prepareBackgroundAudio(){
   if(backgroundAudioUrl)URL.revokeObjectURL(backgroundAudioUrl);
   backgroundAudioUrl=URL.createObjectURL(new Blob(parts,{type:'audio/mpeg'}));
   player.src=backgroundAudioUrl;
+  backgroundAudioScope=scope;
   player.hidden=false;
+  await playBackgroundAudio(player);
  }catch{if(button.isConnected)toast('Could not prepare audio. Check your connection.')}
  finally{
   if(button.isConnected){
-   button.textContent='Prepare background audio';
+   updateBackgroundAudioLabel();
    button.disabled=!selected().length;
   }
  }
 }
 
+async function playBackgroundAudio(player){
+ try{await player.play()}
+ catch(error){
+  if(error.name==='NotAllowedError')toast('Tap Play to start listening.');
+  else if(error.name!=='AbortError')toast('Playback unavailable.');
+ }
+}
+function updateBackgroundAudioLabel(){
+ const button=$('#prepareBackgroundAudio'),player=$('#backgroundAudio');
+ if(!button||!player)return;
+ button.textContent=!player.paused?'Pause listening':player.currentTime>0&&!player.ended?'Resume listening':'Listen to results';
+}
 function stopRangePlayback(){
  if(!rangePlayback)return;
  clearTimeout(rangePlayback.timer);
  rangePlayback=null;
  speaker.stop();
  const button=$('#listenRange');
- if(button)button.textContent='Listen to results';
+ if(button)button.textContent='Listen offline';
  const status=$('#rangeAudioStatus');
  if(status)status.textContent='';
 }
@@ -99,9 +121,7 @@ function toggleRangePlayback(){
   $('#listenRange').textContent=playback.paused?'Resume listening':'Pause listening';
   if(playback.paused){
    clearTimeout(playback.timer);
-   speaker.pause();
-  }else if(playback.speaking){
-   speaker.resume();
+   speaker.stop();
   }else{
    playback.play();
   }
@@ -114,7 +134,7 @@ function toggleRangePlayback(){
   button.textContent='▷ Listen';
   button.setAttribute('aria-pressed','false');
  });
- const playback={words,index:0,section:0,timer:null,paused:false,speaking:false,play};
+ const playback={words,index:0,section:0,timer:null,paused:false,play};
  rangePlayback=playback;
  $('#listenRange').textContent='Pause listening';
  function play(){
@@ -129,11 +149,9 @@ function toggleRangePlayback(){
   const section=sections[playback.section];
   $('#rangeAudioStatus').textContent=(playback.index+1)+' / '+words.length+' · '+card.word+' · '+section.label;
   try{
-   playback.speaking=true;
    speaker.speak(section.text,'range:'+card.id+':'+playback.section,undefined,error=>{
     if(rangePlayback!==playback)return;
     if(error){stopRangePlayback();toast('Playback unavailable.');return}
-    playback.speaking=false;
     playback.section++;
     if(playback.section===sections.length){
      playback.index++;
@@ -265,7 +283,7 @@ function libraryResults(){const list=selected(),tags=quickTagList();return `<div
 <div class="library-tag-panel" id="tag-panel-${c.id}" ${openTagCard===c.id?'':'hidden'}>
  ${quickTags(c,tags)}<div id="editor-${c.id}"></div>
 </div></div>`).join('')||'<p class="empty">No matching words</p>'}</div>${list.length>visible?'<div class="actions"><button id="more" class="btn outline">Load more</button></div>':''}`}
-function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Prepare background audio</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><span id="rangeAudioStatus" class="sub" role="status"></span><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
+function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen offline</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><span id="rangeAudioStatus" class="sub" role="status"></span><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
 function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.translationButton').forEach(b=>b.onclick=()=>toggleTranslation(cards.find(c=>c.id===b.dataset.id)));bindBookmarkButtons();$('#more')?.addEventListener('click',()=>{visible+=80;refreshLibrary()});document.querySelectorAll('.tagButton').forEach(button=>{
  const {id}=button.dataset;
  const editor=$('#editor-'+id);
@@ -294,12 +312,12 @@ function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.tra
   }
  });
 }
-function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;if($('#prepareBackgroundAudio').textContent==='Prepare background audio')$('#prepareBackgroundAudio').disabled=!count;bindLibraryResults()}
+function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;if(!$('#prepareBackgroundAudio').textContent.startsWith('Preparing audio'))$('#prepareBackgroundAudio').disabled=!count;bindLibraryResults()}
 function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,initial:view==='library'?filters.initial:''},status,offlineTranslations);return selected().length}
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=stopRangePlayback;$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
+function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
