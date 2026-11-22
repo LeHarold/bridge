@@ -47,7 +47,45 @@ function paintTranslation(c){
  syncFloatingTools();
 }
 function toggleTranslation(c){let t=translations.get(c.id);if(!t){t={open:false,data:offlineTranslations[c.id]||null};translations.set(c.id,t)}t.open=!t.open;paintTranslation(c)}
-function bindLibraryAudio(){document.querySelectorAll('.audioButton').forEach(b=>b.onclick=()=>{const c=cards.find(c=>c.id===b.dataset.id),part=b.dataset.part;try{speaker.speak(part==='word'?c.word:c.examples[Number(part)],c.id+':'+part,id=>document.querySelectorAll('.audioButton').forEach(button=>{const active=button.dataset.id+':'+button.dataset.part===id;button.textContent=active?'■ Stop':'▷ Listen';button.setAttribute('aria-pressed',String(active))}))}catch(e){toast(e.message)}})}
+let rangePlayback=null;
+function stopRangePlayback(){
+ if(!rangePlayback)return;
+ clearTimeout(rangePlayback.timer);
+ rangePlayback=null;
+ speaker.stop();
+ const button=$('#listenRange');
+ if(button)button.textContent='Listen to results';
+ const status=$('#rangeAudioStatus');
+ if(status)status.textContent='';
+}
+function toggleRangePlayback(){
+ if(rangePlayback){stopRangePlayback();return}
+ const words=selected();
+ if(!words.length)return;
+ document.querySelectorAll('.audioButton[aria-pressed="true"]').forEach(button=>{
+  button.textContent='▷ Listen';
+  button.setAttribute('aria-pressed','false');
+ });
+ const playback={words,index:0,timer:null};
+ rangePlayback=playback;
+ $('#listenRange').textContent='Stop listening';
+ function play(){
+  if(rangePlayback!==playback)return;
+  const card=playback.words[playback.index];
+  if(!card){stopRangePlayback();return}
+  $('#rangeAudioStatus').textContent=(playback.index+1)+' / '+words.length+' · '+card.word;
+  try{
+   speaker.speak(card.word,'range:'+card.id,undefined,error=>{
+    if(rangePlayback!==playback)return;
+    if(error){stopRangePlayback();toast('Playback unavailable.');return}
+    playback.index++;
+    playback.timer=setTimeout(play,700);
+   });
+  }catch(error){stopRangePlayback();toast(error.message)}
+ }
+ play();
+}
+function bindLibraryAudio(){document.querySelectorAll('.audioButton').forEach(b=>b.onclick=()=>{stopRangePlayback();const c=cards.find(c=>c.id===b.dataset.id),part=b.dataset.part;try{speaker.speak(part==='word'?c.word:c.examples[Number(part)],c.id+':'+part,id=>document.querySelectorAll('.audioButton').forEach(button=>{const active=button.dataset.id+':'+button.dataset.part===id;button.textContent=active?'■ Stop':'▷ Listen';button.setAttribute('aria-pressed',String(active))}))}catch(e){toast(e.message)}})}
 
 
 function saveBookmark(c,where=view,notify=false){
@@ -167,7 +205,7 @@ function libraryResults(){const list=selected(),tags=quickTagList();return `<div
 <div class="library-tag-panel" id="tag-panel-${c.id}" ${openTagCard===c.id?'':'hidden'}>
  ${quickTags(c,tags)}<div id="editor-${c.id}"></div>
 </div></div>`).join('')||'<p class="empty">No matching words</p>'}</div>${list.length>visible?'<div class="actions"><button id="more" class="btn outline">Load more</button></div>':''}`}
-function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
+function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><span id="rangeAudioStatus" class="sub" role="status"></span><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
 function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.translationButton').forEach(b=>b.onclick=()=>toggleTranslation(cards.find(c=>c.id===b.dataset.id)));bindBookmarkButtons();$('#more')?.addEventListener('click',()=>{visible+=80;refreshLibrary()});document.querySelectorAll('.tagButton').forEach(button=>{
  const {id}=button.dataset;
  const editor=$('#editor-'+id);
@@ -196,12 +234,12 @@ function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.tra
   }
  });
 }
-function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;bindLibraryResults()}
+function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;bindLibraryResults()}
 function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,initial:view==='library'?filters.initial:''},status,offlineTranslations);return selected().length}
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(){filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#search').oninput=e=>{filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
+function render(){stopRangePlayback();filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#listenRange').onclick=toggleRangePlayback;$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
