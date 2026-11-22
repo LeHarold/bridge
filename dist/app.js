@@ -51,6 +51,7 @@ let rangePlayback=null;
 let backgroundAudioUrl;
 let backgroundAudioScope;
 let backgroundAudioChapters=[];
+let followAudioWord=false;
 async function prepareBackgroundAudio(){
  const button=$('#prepareBackgroundAudio');
  const player=$('#backgroundAudio');
@@ -111,10 +112,12 @@ async function playBackgroundAudio(player){
 function showAudioProgress(card,index,total,section=''){
  const button=$('#rangeAudioStatus');
  if(!button)return;
+ const previous=button.dataset.id;
  const label=card?(index+1)+' / '+total+' · '+card.word+section:'';
  if(button.textContent!==label)button.textContent=label;
  button.hidden=!card;
  button.dataset.id=card?.id||'';
+ if(followAudioWord&&previous!==button.dataset.id)jumpToPlayingWord(false);
 }
 function updateBackgroundProgress(){
  if(rangePlayback)return;
@@ -128,17 +131,20 @@ function updateBackgroundProgress(){
  }
  showAudioProgress(backgroundAudioChapters[low]?.card,low,backgroundAudioChapters.length);
 }
-function jumpToPlayingWord(){
+function jumpToPlayingWord(moveFocus=true){
+ document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word');
  const id=$('#rangeAudioStatus').dataset.id;
+ if(!id)return;
  const index=selected().findIndex(card=>card.id===id);
- if(index<0){toast('This word is outside the current filters.');return}
+ if(index<0){if(moveFocus)toast('This word is outside the current filters.');return}
  let entry=document.getElementById('word-'+id);
  if(!entry){
   visible=Math.max(visible,index+1);
   refreshLibrary();
   entry=document.getElementById('word-'+id);
  }
- entry?.focus({preventScroll:true});
+ if(followAudioWord)entry?.classList.add('is-playing-word');
+ if(moveFocus)entry?.focus({preventScroll:true});
  entry?.scrollIntoView({block:'start'});
 }
 function updateBackgroundAudioLabel(){
@@ -325,7 +331,7 @@ function libraryResults(){const list=selected(),tags=quickTagList();return `<div
 <div class="library-tag-panel" id="tag-panel-${c.id}" ${openTagCard===c.id?'':'hidden'}>
  ${quickTags(c,tags)}<div id="editor-${c.id}"></div>
 </div></div>`).join('')||'<p class="empty">No matching words</p>'}</div>${list.length>visible?'<div class="actions"><button id="more" class="btn outline">Load more</button></div>':''}`}
-function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen offline</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><button id="rangeAudioStatus" type="button" class="btn outline" title="Go to current word" hidden></button><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
+function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen offline</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><button id="followAudioWord" type="button" class="btn outline" aria-pressed="${followAudioWord}">Follow playback</button><button id="rangeAudioStatus" type="button" class="btn outline" title="Go to current word" hidden></button><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
 function bindLibraryResults(){bindLibraryAudio();document.querySelectorAll('.translationButton').forEach(b=>b.onclick=()=>toggleTranslation(cards.find(c=>c.id===b.dataset.id)));bindBookmarkButtons();$('#more')?.addEventListener('click',()=>{visible+=80;refreshLibrary()});document.querySelectorAll('.tagButton').forEach(button=>{
  const {id}=button.dataset;
  const editor=$('#editor-'+id);
@@ -359,7 +365,7 @@ function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(card
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=jumpToPlayingWord;$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
+function render(){stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
