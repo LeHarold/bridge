@@ -2,7 +2,7 @@ import {wordTypes} from './word-types.js';
 import {analyzeSentence,partOfSpeech} from './grammar.js';
 import {createSpeaker} from './library-tools.js';
 import {makeChoice,shuffle} from './choice-practice.js';
-import {examplesHtml,phoneticsHtml,validFilters,matchingCards,printHtml} from './learning.js';
+import {examplesFor,examplesHtml,phoneticsHtml,validFilters,matchingCards,printHtml} from './learning.js';
 import {question,cloze} from './questions.js';
 import {today,followingDay,grade,status,period} from './logic.js';
 let cards=[],records={},db,view='home',queue=[],index=0,flipped=false,locked=false,mode='new',practiceKind='definition',currentChoice=null;
@@ -66,20 +66,30 @@ function toggleRangePlayback(){
   button.textContent='▷ Listen';
   button.setAttribute('aria-pressed','false');
  });
- const playback={words,index:0,timer:null};
+ const playback={words,index:0,section:0,timer:null};
  rangePlayback=playback;
  $('#listenRange').textContent='Stop listening';
  function play(){
   if(rangePlayback!==playback)return;
   const card=playback.words[playback.index];
   if(!card){stopRangePlayback();return}
-  $('#rangeAudioStatus').textContent=(playback.index+1)+' / '+words.length+' · '+card.word;
+  const sections=[
+   {label:'Word',text:card.word},
+   {label:'Definition',text:card.meaning},
+   ...examplesFor(card).map((text,index)=>({label:'Example '+(index+1),text}))
+  ].filter(section=>section.text?.trim());
+  const section=sections[playback.section];
+  $('#rangeAudioStatus').textContent=(playback.index+1)+' / '+words.length+' · '+card.word+' · '+section.label;
   try{
-   speaker.speak(card.word,'range:'+card.id,undefined,error=>{
+   speaker.speak(section.text,'range:'+card.id+':'+playback.section,undefined,error=>{
     if(rangePlayback!==playback)return;
     if(error){stopRangePlayback();toast('Playback unavailable.');return}
-    playback.index++;
-    playback.timer=setTimeout(play,700);
+    playback.section++;
+    if(playback.section===sections.length){
+     playback.index++;
+     playback.section=0;
+    }
+    playback.timer=setTimeout(play,playback.section===0?700:400);
    });
   }catch(error){stopRangePlayback();toast(error.message)}
  }
