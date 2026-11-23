@@ -10,6 +10,7 @@ let offlineTranslations={},practiceSentences={};
 let choicePool=[];
 let practiceResults=null;
 let missedCards=[];
+let quizAnswers=new Map();
 let bookmark=null;
 const BOOKMARK_KEY='bridge-reading-bookmark-v1';
 try{bookmark=JSON.parse(localStorage.getItem(BOOKMARK_KEY)||'null')}catch{}
@@ -18,7 +19,15 @@ const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>
 const labels={new:'Not started',red:'Needs practice',yellow:'Learning',green:'Mastered'};
 const rec=c=>records[c.id]||{id:c.id,streak:0,tags:[]};
 function lamp(c){const r=rec(c),s=status(r);return `<span><i class="dot ${s}"></i>${labels[s]}${r.streak?' · '+r.streak+'/3':''}</span>`}
-function toast(t){$('#toast').textContent=t;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3000)}
+let toastTimer;
+function toast(message,aboveTools=false){
+ const box=$('#toast');
+ clearTimeout(toastTimer);
+ box.classList.toggle('above-tools',aboveTools);
+ box.textContent=message;
+ box.style.display='block';
+ toastTimer=setTimeout(()=>box.style.display='none',3000);
+}
 async function put(r){await new Promise((resolve,reject)=>{const t=db.transaction('words','readwrite');t.objectStore('words').put(r);t.oncomplete=resolve;t.onerror=()=>reject(t.error)});records[r.id]=r}
 function selected(){if(view==='quiz'&&practiceResults)return practiceResults;filters=validFilters(filters,cards,records);return matchingCards(cards,records,{...filters,initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations)}
 function persistFilters(){try{sessionStorage.setItem('bridge-filters-book-pages-v2',JSON.stringify(filters))}catch{}}
@@ -295,16 +304,23 @@ function libraryIcon(name){
 }
 function home(){const pending=cards.filter(due),counts=Object.keys(labels).map(s=>cards.filter(c=>status(rec(c))===s).length),learned=cards.length-counts[0];return title('Today')+`${bookmarkCard()}<div class="hero"><section class="panel feature"><h2>Review</h2><div class="big">${pending.length}<span style="font-size:14px;margin-left:12px">words due for review</span></div><button class="btn" id="review">Start today’s review ↗</button><div class="bridge"></div></section><section class="panel"><h2 style="font-family:Georgia;font-size:32px;margin-top:18px">THE BRIDGE</h2><p class="sub">${cards.length.toLocaleString()} cards · pp. 2–241</p><div class="progress"><i style="width:${learned/cards.length*100}%"></i></div><div class="row sub"><span>Started ${learned} / ${cards.length}</span><button class="btn outline" id="explore">Browse library →</button></div></section></div><div class="stats">${Object.keys(labels).map((s,i)=>`<div class="stat"><span><i class="dot ${s}"></i>${labels[s]}</span><strong>${counts[i].toLocaleString()}</strong></div>`).join('')}</div><section class="panel"><div class="section-head"><h2>Choose your study range</h2></div>${controls()}<div class="row"><span class="sub">In range: ${selected().length} words</span><button id="start" class="btn">Practice this range →</button></div></section><section style="margin-top:30px"><div class="section-head"><h2>Words to revisit</h2></div>${pending.length?pending.slice(0,5).map(c=>row(c)).join(''):'<div class="panel sub">No reviews due</div>'}</section>`}
 function study(){return title(view==='quiz'?'Practice':'Flashcards')+(practiceResults&&view==='quiz'?'<div class="actions"><span>Library results</span><button id="clearPracticeResults" class="btn outline">Clear results scope</button></div>':controls())+`<div class="actions"><button class="btn ${mode==='new'?'':'outline'}" id="allStudy">Practice this range</button><button class="btn ${mode==='due'?'':'outline'}" id="dueStudy">Due words only</button><span class="sub">${selected().length} words in range</span></div>${view==='quiz'?`<div class="actions practice-modes" role="group" aria-label="Practice mode"><button class="btn ${practiceKind==='chinese'?'':'outline'}" data-practice="chinese">Chinese → English (${Object.keys(offlineTranslations).length} cards)</button><button class="btn ${practiceKind==='definition'?'':'outline'}" data-practice="definition">Definition → English</button><button class="btn ${practiceKind==='sentence'?'':'outline'}" data-practice="sentence">Sentence blank → English</button></div>`:''}<div id="studyBody" class="card-area${view==='quiz'?' quiz-card':''}"></div>`}
-function showCard(){const host=$('#studyBody');if(!host)return;const c=queue[index];if(!c){host.innerHTML=`<div class="panel empty"><h2>${queue.length?'Round complete.':'No words match your selection.'}</h2><button id="restart" class="btn">Start a fresh round</button>${view==='quiz'&&missedCards.length?` <button id="retryMissed" class="btn outline">Retry missed (${missedCards.length})</button>`:''}</div>`;$('#restart').onclick=()=>start(mode);$('#retryMissed')?.addEventListener('click',()=>start(mode,missedCards));return}const r=rec(c),q=view==='quiz'?makeChoice(c,choicePool,practiceKind,offlineTranslations[c.id],Math.random,practiceSentences[c.id]||[]):question(c,index%2===1);currentChoice=view==='quiz'?q:null;
+function showCard(){const host=$('#studyBody');if(!host)return;const c=queue[index];if(!c){host.innerHTML=`<div class="panel empty"><h2>${queue.length?'Round complete.':'No words match your selection.'}</h2><button id="restart" class="btn">Start a fresh round</button>${view==='quiz'&&queue.length?previousQuestionButton():''}${view==='quiz'&&missedCards.length?` <button id="retryMissed" class="btn outline">Retry missed (${missedCards.length})</button>`:''}</div>`;$('#restart').onclick=()=>start(mode);$('#previousQuestion')?.addEventListener('click',previousQuestion);$('#retryMissed')?.addEventListener('click',()=>start(mode,missedCards));return}const r=rec(c),q=view==='quiz'?quizAnswers.get(index)?.question??makeChoice(c,choicePool,practiceKind,offlineTranslations[c.id],Math.random,practiceSentences[c.id]||[]):question(c,index%2===1);currentChoice=view==='quiz'?q:null;
 if(view==='quiz'&&!q){
  host.innerHTML=`<div class="panel empty"><h2>Four distinct choices required</h2><button id="skip" class="btn outline">Skip word →</button></div>`;
  $('#skip').onclick=next;
  return;
 }
-host.innerHTML=`<div class="row sub"><span>${index+1} / ${queue.length} · Book p.${c.page}</span>${lamp(c)}</div>${bookmarkButton(c)}<div class="progress"><i style="width:${index/queue.length*100}%"></i></div><div class="flash">${view==='cards'?`<h2>${esc(c.word)}</h2>${phoneticsHtml(c)}<button id="speak" class="btn outline" aria-label="Read word aloud">▷ Listen</button>${flipped?`<p class="meaning">${esc(c.meaning)}</p><div class="card-examples">${examplesHtml(c)}</div>`:'<button id="flip" class="btn">Flip card ↻</button>'}`:`<p class="meaning">${esc(q?.text||'Question not available in this mode.')}</p><div class="choice-options">${(q?.options||[]).map((o,i)=>`<button class="btn outline choice-option" data-choice="${esc(o.id)}"><span class="choice-letter">${String.fromCharCode(65+i)}</span><span>${esc(o.text)}</span></button>`).join('')}</div><div id="feedback" aria-live="polite"></div>`}</div><div class="actions" id="grading">${view==='cards'&&flipped?'<button id="wrong" class="btn outline">Still learning</button><button id="correct" class="btn">I remembered ✓</button>':''}<button id="skip" class="btn outline">Skip without grading →</button></div><div class="panel"><div class="row"><span class="sub" id="studyTags">Custom tags · ${esc((r.tags||[]).join(' / ')||'No tags yet')}</span><button class="btn outline" id="editTags">Edit tags</button></div><div id="tagEditor"></div></div>`;
-bindBookmarkButtons();$('#flip')?.addEventListener('click',()=>{flipped=true;showCard()});$('#speak')?.addEventListener('click',()=>{if(!('speechSynthesis'in window))return toast('Speech is not supported in this browser.');const u=new SpeechSynthesisUtterance(c.word);u.lang='en-US';speechSynthesis.speak(u)});$('#skip').onclick=next;$('#wrong')?.addEventListener('click',()=>rate(false));$('#correct')?.addEventListener('click',()=>rate(true));document.querySelectorAll('.choice-option').forEach(b=>b.onclick=()=>checkChoice(b.dataset.choice));$('#editTags').onclick=()=>editTags(c,$('#tagEditor'))}
-function next(){
- index++;
+host.innerHTML=`<div class="row sub"><span>${index+1} / ${queue.length} · Book p.${c.page}</span>${lamp(c)}</div>${bookmarkButton(c)}<div class="progress"><i style="width:${index/queue.length*100}%"></i></div><div class="flash">${view==='cards'?`<h2>${esc(c.word)}</h2>${phoneticsHtml(c)}<button id="speak" class="btn outline" aria-label="Read word aloud">▷ Listen</button>${flipped?`<p class="meaning">${esc(c.meaning)}</p><div class="card-examples">${examplesHtml(c)}</div>`:'<button id="flip" class="btn">Flip card ↻</button>'}`:`<p class="meaning">${esc(q?.text||'Question not available in this mode.')}</p><div class="choice-options">${(q?.options||[]).map((o,i)=>`<button class="btn outline choice-option" data-choice="${esc(o.id)}"><span class="choice-letter">${String.fromCharCode(65+i)}</span><span>${esc(o.text)}</span></button>`).join('')}</div><div id="feedback" aria-live="polite"></div>`}</div><div class="actions" id="grading">${view==='cards'&&flipped?'<button id="wrong" class="btn outline">Still learning</button><button id="correct" class="btn">I remembered ✓</button>':''}${view==='quiz'&&index>0?previousQuestionButton():''}<button id="skip" class="btn outline">Skip without grading →</button></div><div class="panel"><div class="row"><span class="sub" id="studyTags">Custom tags · ${esc((r.tags||[]).join(' / ')||'No tags yet')}</span><button class="btn outline" id="editTags">Edit tags</button></div><div id="tagEditor"></div></div>`;
+bindBookmarkButtons();$('#flip')?.addEventListener('click',()=>{flipped=true;showCard()});$('#speak')?.addEventListener('click',()=>{if(!('speechSynthesis'in window))return toast('Speech is not supported in this browser.');const u=new SpeechSynthesisUtterance(c.word);u.lang='en-US';speechSynthesis.speak(u)});$('#skip').onclick=next;$('#previousQuestion')?.addEventListener('click',previousQuestion);$('#wrong')?.addEventListener('click',()=>rate(false));$('#correct')?.addEventListener('click',()=>rate(true));document.querySelectorAll('.choice-option').forEach(b=>b.onclick=()=>checkChoice(b.dataset.choice));$('#editTags').onclick=()=>editTags(c,$('#tagEditor'));if(view==='quiz'&&quizAnswers.has(index))showQuizAnswer(c,q,quizAnswers.get(index).chosen);}
+function previousQuestionButton(){
+ return `<button id="previousQuestion" class="btn outline" ${index===0?'disabled':''}>← Previous question</button>`;
+}
+function previousQuestion(){
+ if(index>0)moveToQuestion(index-1);
+}
+function next(){moveToQuestion(index+1)}
+function moveToQuestion(position){
+ index=position;
  flipped=false;
  locked=false;
  showCard();
@@ -315,7 +331,11 @@ function next(){
 async function rate(ok){if(locked)return;locked=true;try{await put(grade(rec(queue[index]),ok));next()}catch(e){locked=false;toast('Could not save. Export a backup and try again.')}}
 function norm(s){return s.toLowerCase().trim().replace(/[’‘]/g,"'").replace(/\s+/g,' ').replace(/[.!?]$/,'')}
 async function check(force){if(locked)return;const c=queue[index],answer=$('#answer').value;const alternatives=question(c,index%2===1).answers.flatMap(a=>a.split(/\s*[=;]\s*/)).map(norm);const ok=force===false?false:alternatives.includes(norm(answer));locked=true;try{await put(grade(rec(c),ok));$('#submit').disabled=true;$('#dontKnow').disabled=true;$('#answer').disabled=true;$('#feedback').innerHTML=`<div class="feedback ${ok?'':'bad'}"><strong>${ok?'Correct ✓':'Incorrect'}</strong><br>Answer: ${esc(c.word)} ${phoneticsHtml(c)}<br>Definition: ${esc(c.meaning)}<br>Examples: <div class="feedback-examples">${examplesHtml(c)}</div></div>`;$('#grading').innerHTML='<button id="next" class="btn">Next word →</button>';$('#next').onclick=next}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
-async function checkChoice(chosen){if(locked)return;const c=queue[index],q=currentChoice;if(!q)return;const ok=chosen===q.correctId;locked=true;try{await put(grade(rec(c),ok));if(view!=='quiz'||q!==currentChoice||c!==queue[index])return;if(!ok)missedCards.push(c);document.querySelectorAll('.choice-option').forEach(b=>{b.disabled=true;b.classList.toggle('choice-correct',b.dataset.choice===q.correctId);b.classList.toggle('choice-wrong',b.dataset.choice===chosen&& !ok);
+async function checkChoice(chosen){if(locked)return;const c=queue[index],q=currentChoice;if(!q)return;const ok=chosen===q.correctId;locked=true;try{await put(grade(rec(c),ok));if(view!=='quiz'||q!==currentChoice||c!==queue[index])return;if(!ok)missedCards.push(c);quizAnswers.set(index,{question:q,chosen});showQuizAnswer(c,q,chosen)}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
+function showQuizAnswer(c,q,chosen){
+ locked=true;
+ const ok=chosen===q.correctId;
+ document.querySelectorAll('.choice-option').forEach(b=>{b.disabled=true;b.classList.toggle('choice-correct',b.dataset.choice===q.correctId);b.classList.toggle('choice-wrong',b.dataset.choice===chosen&& !ok);
  const gloss=offlineTranslations[b.dataset.choice]?.word;
  if(gloss){
   const label=document.createElement('span');
@@ -323,7 +343,23 @@ async function checkChoice(chosen){if(locked)return;const c=queue[index],q=curre
   label.lang='zh-Hant';
   label.textContent=' · '+gloss;
   b.lastElementChild.append(label);
- }});$('#feedback').innerHTML=`<div class="feedback ${ok?'':'bad'}"><strong>${ok?'Correct ✓':'Incorrect'}</strong><br>Answer: ${esc(c.word)} ${phoneticsHtml(c)}<br>Definition: ${esc(c.meaning)}<br>Examples: <div class="feedback-examples">${examplesHtml(c)}</div></div>`;$('#grading').innerHTML='<button id="next" class="btn">Next word →</button>';$('#next').onclick=next}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
+ }});$('#feedback').innerHTML=`<div class="feedback ${ok?'':'bad'}"><strong>${ok?'Correct ✓':'Incorrect'}</strong><br>Answer: ${esc(c.word)} ${phoneticsHtml(c)}<br>Definition: ${esc(c.meaning)}<br>Examples: <div class="feedback-examples">${examplesHtml(c)}</div></div>`;$('#grading').innerHTML=previousQuestionButton();
+ $('#previousQuestion').onclick=previousQuestion;
+ $('#grading').classList.add('quiz-graded');
+ $('#feedback').setAttribute('tabindex','0');
+}
+document.addEventListener('click',event=>{
+ if(event.defaultPrevented||view!=='quiz'||!quizAnswers.has(index))return;
+ if(window.getSelection()?.toString())return;
+ const target=event.target;
+ if(!target.matches('body,main,#content,#studyBody,.flash,#grading'))return;
+ next();
+});
+document.addEventListener('keydown',event=>{
+ if(event.key!=='Enter'||event.target.id!=='feedback'||view!=='quiz'||!quizAnswers.has(index))return;
+ event.preventDefault();
+ next();
+});
 const recentTagsKey='bridge-recent-tags-v1';
 let recentTags=[];
 try{
@@ -362,7 +398,7 @@ async function saveTags(c,tags,host){
    $('#studyTags').textContent='Custom tags · '+(tags.join(' / ')||'No tags yet');
    host.replaceChildren();
   }
-  toast('Tags saved');
+  toast('Tags saved',true);
  }catch(e){toast('Could not save tags')}
  finally{savingTags=false}
 }
@@ -430,7 +466,7 @@ function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const 
 function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations);return selected().length}
 window.addEventListener('beforeprint',preparePrint);
 
-function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
+function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];quizAnswers.clear();queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
 function render(){libraryObserver?.disconnect();stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#libraryResults').onclick=playFromClickedWord;$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#toggleAudioCaptions').onclick=toggleAudioCaptions;$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#libraryOrder').onchange=e=>{stopRangePlayback();$('#backgroundAudio')?.pause();filters.order=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode)}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{speaker.stop();practiceResults=null;view=b.dataset.view;mode='new';render()});
