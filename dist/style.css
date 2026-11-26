@@ -117,3 +117,18 @@
 .weekly-days{list-style:none;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:8px 0;padding:0}
 .weekly-days li{display:grid;text-align:center;gap:3px;padding:4px 0;font-size:11px;border-radius:6px}
 .weekly-days li[aria-current=date]{background:#e5f1d9;color:#254327}
+
+.tap-flash{cursor:pointer;margin-top:4px;min-height:250px;justify-content:center;background:linear-gradient(145deg,#fffef9,#f2f6ea);box-shadow:0 8px 24px #183d3610}
+.tap-flash:focus-visible{outline:3px solid #6b925a;outline-offset:3px}
+.tap-flash #flashHint{margin:6px 0 0;font-size:12px}
+.flash-steps{display:flex;gap:6px;margin-top:12px}
+.flash-steps i{width:16px;height:4px;border-radius:4px;background:#cbd6ca}
+.flash-steps i.active{background:#4c7944}
+.tap-flash .chinese-translation{margin:4px 0}
+.tap-flash.phase-word{animation:bridge-card-in .23s ease-out both}
+.tap-flash.phase-english .flash-reveal,.tap-flash.phase-chinese .chinese-translation{animation:bridge-reveal .22s ease-out both}
+.btn{transition:background-color .16s,color .16s,box-shadow .16s}
+.btn:active:not(:disabled){box-shadow:inset 0 0 0 2px #78977580}
+@keyframes bridge-card-in{from{opacity:.5;transform:translateY(7px) scale(.99)}}
+@keyframes bridge-reveal{from{opacity:0;transform:translateY(4px)}}
+@media(prefers-reduced-motion:reduce){.tap-flash.phase-word,.tap-flash.phase-english .flash-reveal,.tap-flash.phase-chinese .chinese-translation{animation:none}.btn{transition:none}}

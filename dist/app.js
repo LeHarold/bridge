@@ -8,6 +8,7 @@ import {today,followingDay,grade,status,period,weekDates,weeklyPlan} from './log
 let cards=[],records={},db,view='home',queue=[],index=0,flipped=false,locked=false,mode='new',practiceKind='definition',currentChoice=null;
 let offlineTranslations={},practiceSentences={};
 let choicePool=[];
+let flashChinese=false;
 let practiceResults=null;
 let missedCards=[];
 let quizAnswers=new Map();
@@ -350,7 +351,7 @@ function resumeReading(){
  if(!selected().some(w=>w.id===c.id))filters={from:2,to:241,end:'',tag:'',state:'',search:''};
  persistFilters();view=saved.view==='library'?'library':saved.view==='quiz'?'quiz':'cards';mode='new';
  if(view==='library'){visible=Math.max(80,selected().findIndex(w=>w.id===c.id)+1);render();requestAnimationFrame(()=>{const el=document.getElementById('word-'+c.id);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus({preventScroll:true})})}
- else{render();index=queue.findIndex(w=>w.id===c.id);flipped=false;locked=false;showCard();$('#studyBody')?.scrollIntoView({block:'start',behavior:'smooth'})}
+ else{render();index=queue.findIndex(w=>w.id===c.id);flipped=false;flashChinese=false;locked=false;showCard();$('#studyBody')?.scrollIntoView({block:'start',behavior:'smooth'})}
 }
 
 const libraryIcons={
@@ -475,8 +476,10 @@ if(view==='quiz'&&!q){
  $('#skip').onclick=next;
  return;
 }
-host.innerHTML=`<div class="row sub"><span>${index+1} / ${queue.length} · Book p.${c.page}</span>${lamp(c)}</div>${bookmarkButton(c)}<div class="progress"><i style="width:${index/queue.length*100}%"></i></div><div class="flash">${view==='cards'?`<h2>${esc(c.word)}</h2>${phoneticsHtml(c)}<button id="speak" class="btn outline" aria-label="Read word aloud">▷ Listen</button>${flipped?`<p class="meaning">${esc(c.meaning)}</p><div class="card-examples">${examplesHtml(c)}</div>`:'<button id="flip" class="btn">Flip card ↻</button>'}`:`<p class="meaning">${esc(q?.text||'Question not available in this mode.')}</p><div class="choice-options">${(q?.options||[]).map((o,i)=>`<button class="btn outline choice-option" data-choice="${esc(o.id)}"><span class="choice-letter">${String.fromCharCode(65+i)}</span><span>${esc(o.text)}</span></button>`).join('')}</div><div id="feedback" aria-live="polite"></div>`}</div><div class="actions" id="grading">${view==='cards'&&flipped?'<button id="wrong" class="btn outline">Still learning</button><button id="correct" class="btn">I remembered ✓</button>':''}${view==='quiz'&&index>0?previousQuestionButton():''}<button id="skip" class="btn outline">Skip without grading →</button></div><div class="panel"><div class="row"><span class="sub" id="studyTags">Custom tags · ${esc((r.tags||[]).join(' / ')||'No tags yet')}</span><button class="btn outline" id="editTags">Edit tags</button></div><div id="tagEditor"></div></div>`;
-bindBookmarkButtons();$('#flip')?.addEventListener('click',()=>{flipped=true;showCard()});$('#speak')?.addEventListener('click',()=>{if(!('speechSynthesis'in window))return toast('Speech is not supported in this browser.');const u=new SpeechSynthesisUtterance(c.word);u.lang='en-US';speechSynthesis.speak(u)});$('#skip').onclick=next;$('#previousQuestion')?.addEventListener('click',previousQuestion);$('#wrong')?.addEventListener('click',()=>rate(false));$('#correct')?.addEventListener('click',()=>rate(true));document.querySelectorAll('.choice-option').forEach(b=>b.onclick=()=>checkChoice(b.dataset.choice));$('#editTags').onclick=()=>editTags(c,$('#tagEditor'));if(view==='quiz'&&quizAnswers.has(index))showQuizAnswer(c,q,quizAnswers.get(index).chosen);}
+host.innerHTML=`<div class="row sub"><span>${index+1} / ${queue.length} · Book p.${c.page}</span>${lamp(c)}</div>${bookmarkButton(c)}<div class="progress"><i style="width:${index/queue.length*100}%"></i></div><div class="flash${view==='cards'?' tap-flash phase-'+(flashChinese?'chinese':flipped?'english':'word'):''}" ${view==='cards'?'tabindex="0" aria-describedby="flashHint"':''}>${view==='cards'?`<h2>${esc(c.word)}</h2>${phoneticsHtml(c)}<button id="speak" class="btn outline" aria-label="Read word aloud">▷ Listen</button>${flipped?`<div class="flash-reveal"><p class="meaning">${esc(c.meaning)}</p>${flashChinese?chinese(offlineTranslations[c.id]?.word)+chinese(offlineTranslations[c.id]?.meaning):''}<div class="card-examples">${examplesFor(c).map((line,i)=>`<p class="example-line">${esc(line)}</p>${flashChinese?chinese(offlineTranslations[c.id]?.examples?.[i]):''}`).join('')}</div></div>`:''}
+ <div class="flash-steps" aria-hidden="true">${[0,1,2].map(step=>`<i class="${step<=(flashChinese?2:flipped?1:0)?'active':''}"></i>`).join('')}</div>
+ <p class="sub" id="flashHint">${flashChinese?'Tap for next card':flipped?'Tap to show Chinese':'Tap to reveal'}</p>`:`<p class="meaning">${esc(q?.text||'Question not available in this mode.')}</p><div class="choice-options">${(q?.options||[]).map((o,i)=>`<button class="btn outline choice-option" data-choice="${esc(o.id)}"><span class="choice-letter">${String.fromCharCode(65+i)}</span><span>${esc(o.text)}</span></button>`).join('')}</div><div id="feedback" aria-live="polite"></div>`}</div><div class="actions" id="grading">${view==='quiz'&&index>0?previousQuestionButton():''}<button id="skip" class="btn outline">Skip without grading →</button></div><div class="panel"><div class="row"><span class="sub" id="studyTags">Custom tags · ${esc((r.tags||[]).join(' / ')||'No tags yet')}</span><button class="btn outline" id="editTags">Edit tags</button></div><div id="tagEditor"></div></div>`;
+bindBookmarkButtons();$('#speak')?.addEventListener('click',()=>{if(!('speechSynthesis'in window))return toast('Speech is not supported in this browser.');const u=new SpeechSynthesisUtterance(c.word);u.lang='en-US';speechSynthesis.speak(u)});$('#skip').onclick=next;$('#previousQuestion')?.addEventListener('click',previousQuestion);document.querySelectorAll('.choice-option').forEach(b=>b.onclick=()=>checkChoice(b.dataset.choice));$('#editTags').onclick=()=>editTags(c,$('#tagEditor'));if(view==='quiz'&&quizAnswers.has(index))showQuizAnswer(c,q,quizAnswers.get(index).chosen);}
 function previousQuestionButton(){
  return `<button id="previousQuestion" class="btn outline" ${index===0?'disabled':''}>← Previous question</button>`;
 }
@@ -488,13 +491,43 @@ function moveToQuestion(position){
  index=position;
  saveRound();
  flipped=false;
+ flashChinese=false;
  locked=false;
  showCard();
  if(view==='quiz'&&window.matchMedia('(max-width:600px)').matches){
   $('#studyBody')?.scrollIntoView({block:'start',behavior:'instant'});
  }
 }
-async function rate(ok){if(locked)return;locked=true;try{await put(grade(rec(queue[index]),ok));next()}catch(e){locked=false;toast('Could not save. Export a backup and try again.')}}
+async function advanceFlashcard(){
+ const card=queue[index];
+ if(!card||locked)return;
+ const focused=document.activeElement?.matches('.tap-flash');
+ if(!flipped)flipped=true;
+ else if(!flashChinese)flashChinese=true;
+ else{
+  const round=queue,position=index;
+  locked=true;
+  try{
+   const record=rec(card),day=today(),dates=weekDates(day);
+   const weeklyAttempt=[record.weeklyAttempt,record.lastAttempt].find(date=>dates.includes(date)&&date<=day)||day;
+   if(record.weeklyAttempt!==weeklyAttempt)await put({...record,weeklyAttempt});
+   if(view==='cards'&&queue===round&&index===position)next();
+  }catch{if(view==='cards'&&queue===round&&index===position){locked=false;toast('Could not save weekly progress.');}}
+  if(focused)$('#studyBody .tap-flash')?.focus({preventScroll:true});
+  return;
+ }
+ showCard();
+ if(focused)$('#studyBody .tap-flash')?.focus({preventScroll:true});
+}
+document.addEventListener('click',event=>{
+ if(view!=='cards'||event.defaultPrevented||event.target.closest('button,a,input,select,textarea,label,audio,dialog')||window.getSelection()?.toString())return;
+ if(event.target.matches('body,main,#content,#studyBody,.tap-flash,#grading,#flashHint,.flash-steps,.flash-steps i'))void advanceFlashcard();
+});
+document.addEventListener('keydown',event=>{
+ if(view!=='cards'||!event.target.matches('.tap-flash')||!['Enter',' '].includes(event.key)||event.repeat)return;
+ event.preventDefault();
+ void advanceFlashcard();
+});
 function norm(s){return s.toLowerCase().trim().replace(/[’‘]/g,"'").replace(/\s+/g,' ').replace(/[.!?]$/,'')}
 async function check(force){if(locked)return;const c=queue[index],answer=$('#answer').value;const alternatives=question(c,index%2===1).answers.flatMap(a=>a.split(/\s*[=;]\s*/)).map(norm);const ok=force===false?false:alternatives.includes(norm(answer));locked=true;try{await put(grade(rec(c),ok));$('#submit').disabled=true;$('#dontKnow').disabled=true;$('#answer').disabled=true;$('#feedback').innerHTML=`<div class="feedback ${ok?'':'bad'}"><strong>${ok?'Correct ✓':'Incorrect'}</strong><br>Answer: ${esc(c.word)} ${phoneticsHtml(c)}<br>Definition: ${esc(c.meaning)}<br>Examples: <div class="feedback-examples">${examplesHtml(c)}</div></div>`;$('#grading').innerHTML='<button id="next" class="btn">Next word →</button>';$('#next').onclick=next}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
 async function checkChoice(chosen){if(locked)return;const c=queue[index],q=currentChoice;if(!q)return;const ok=chosen===q.correctId;locked=true;try{await put(grade(rec(c),ok));if(view!=='quiz'||q!==currentChoice||c!==queue[index])return;if(!ok)missedCards.push(c);quizAnswers.set(index,{question:q,chosen});saveRound();showQuizAnswer(c,q,chosen)}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
@@ -638,7 +671,7 @@ function isPracticeCandidate(card){
  if(practiceKind==='sentence')return !!cloze(card,practiceSentences[card.id]||[]);
  return true;
 }
-function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];quizAnswers.clear();roundWeeklyStart=currentWeek().completed;queue=view==='quiz'?shuffle(source.filter(isPracticeCandidate)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
+function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];quizAnswers.clear();roundWeeklyStart=currentWeek().completed;queue=view==='quiz'?shuffle(source.filter(isPracticeCandidate)):shuffle(source);index=0;flipped=false;flashChinese=false;locked=false;showCard()}
 function render(studyBatch=null,resuming=false){backgroundLoad=null;libraryObserver?.disconnect();stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindWeeklyGoal();bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#libraryResults').onclick=playFromClickedWord;$('#downloadReviewAudio').onclick=downloadReviewAudio;$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#toggleAudioCaptions').onclick=toggleAudioCaptions;$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#libraryOrder').onchange=e=>{stopRangePlayback();$('#backgroundAudio')?.pause();filters.order=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#resetStudy').onclick=()=>{practiceResults=null;filters={from:2,to:241,end:'',tag:'',state:'',search:''};persistFilters();render()};$('#resumeRound')?.addEventListener('click',restoreRound);$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});if(resuming)showCard();else start(mode,studyBatch)}}
 
 const pageOrder=['home','cards','quiz','library'];
