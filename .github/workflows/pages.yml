@@ -120,6 +120,18 @@ jobs:
         with:
           path: dist
           name: github-pages-${{ github.run_attempt }}
+      - name: Wait for the Pages artifact to be indexed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+        run: |
+          for attempt in {1..12}; do
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$ARTIFACT_NAME" --jq '.total_count') || count=0
+            [[ "$count" == '1' ]] && exit 0
+            sleep 5
+          done
+          echo "Pages artifact did not become available" >&2
+          exit 1
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v5
