@@ -307,26 +307,30 @@ let weeklyGoal=null;
 try{weeklyGoal=JSON.parse(localStorage.getItem(weeklyGoalKey)||'null')}catch{}
 function currentWeek(){
  const day=today(),dates=weekDates(day);
- const goal=weeklyGoal?.week===dates[0]?weeklyGoal.words:0;
+ const active=weeklyGoal?.week===dates[0]?weeklyGoal:null;
+ const ids=Array.isArray(active?.cardIds)?new Set(active.cardIds):null;
+ const goalCards=ids?cards.filter(card=>ids.has(card.id)):cards;
+ const goal=Math.min(active?.words||0,goalCards.length);
  const done=new Set();
  const attempts=[];
- for(const card of cards){
+ for(const card of goalCards){
   const record=rec(card);
   const attempt=[record.weeklyAttempt,record.lastAttempt].find(date=>dates.includes(date)&&date<=day);
   if(attempt){done.add(card.id);attempts.push(attempt);}
  }
- return {day,goal,done,...weeklyPlan(goal,attempts,day)};
+ return {day,goal,done,goalCards,...weeklyPlan(goal,attempts,day)};
 }
 function weeklyGoalPanel(){
  const week=currentWeek();
  const current=week.schedule.find(item=>item.date===week.day);
- return `<section class="panel weekly-goal">
+ const rangeSize=selected().length;
+ return `<section class="weekly-goal">
   <h2>Weekly goal</h2>
   <form id="weeklyGoalForm" class="weekly-goal-form">
-   <label>Words this week <input name="words" type="number" min="1" max="${cards.length}" required value="${week.goal||''}" placeholder="30"></label>
-   <button class="btn outline">Save goal</button>
+   <label>Words this week <input name="words" type="number" min="1" max="${rangeSize}" placeholder="${rangeSize}" ${rangeSize?'':'disabled'}></label>
+   <button class="btn outline" ${rangeSize?'':'disabled'}>Set range as weekly goal</button>
   </form>
-  ${week.goal?`<div class="weekly-summary"><strong>${week.completed} / ${week.goal} words</strong><span>${week.completed>=week.goal?'✓ Goal reached':current.done+' / '+week.todayTarget+' today'}</span></div>
+  ${week.goal?`<div class="weekly-summary"><strong>${week.completed} / ${week.goal} words</strong><span class="sub">${week.goalCards.length} words in saved range</span><span>${week.completed>=week.goal?'✓ Goal reached':current.done+' / '+week.todayTarget+' today'}</span></div>
   <progress value="${Math.min(week.completed,week.goal)}" max="${week.goal}" aria-label="Weekly progress"></progress>
   <ol class="weekly-days">${week.schedule.map((item,index)=>`<li ${item.date===week.day?'aria-current="date"':''}><span>${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]}</span><strong>${item.done}/${item.target}</strong></li>`).join('')}</ol>
   ${week.completed<week.goal&&week.todayTarget>current.done?'<button class="btn" id="startWeeklyTask">Start today’s task</button>':''}`:''}
@@ -335,23 +339,24 @@ function weeklyGoalPanel(){
 function bindWeeklyGoal(){
  $('#weeklyGoalForm').onsubmit=event=>{
   event.preventDefault();
-  const words=Number(event.currentTarget.elements.words.value);
-  if(!Number.isInteger(words)||words<1||words>cards.length)return;
-  const goal={week:weekDates()[0],words};
+  const range=selected();
+  const words=Number(event.currentTarget.elements.words.value)||range.length;
+  if(!Number.isInteger(words)||words<1||words>range.length)return;
+  const goal={week:weekDates()[0],words,cardIds:range.map(card=>card.id)};
   try{localStorage.setItem(weeklyGoalKey,JSON.stringify(goal));weeklyGoal=goal;render();}
   catch{toast('Could not save goal.');}
  };
  $('#startWeeklyTask')?.addEventListener('click',()=>{
   const week=currentWeek();
   const count=week.todayTarget-week.schedule.find(item=>item.date===week.day).done;
-  const available=cards.filter(card=>!week.done.has(card.id));
+  const available=week.goalCards.filter(card=>!week.done.has(card.id));
   const batch=[...available.filter(due),...available.filter(card=>!due(card))].slice(0,count);
   if(!batch.length)return;
   navigateTo('cards',batch);
   $('#studyBody')?.scrollIntoView({block:'start'});
  });
 }
-function home(){const pending=cards.filter(due),counts=Object.keys(labels).map(s=>cards.filter(c=>status(rec(c))===s).length),learned=cards.length-counts[0];return title('Today')+`${weeklyGoalPanel()}${bookmarkCard()}<div class="hero"><section class="panel feature"><h2>Review</h2><div class="big">${pending.length}<span style="font-size:14px;margin-left:12px">words due for review</span></div><button class="btn" id="review">Start today’s review ↗</button><div class="bridge"></div></section><section class="panel"><h2 style="font-family:Georgia;font-size:32px;margin-top:18px">THE BRIDGE</h2><p class="sub">${cards.length.toLocaleString()} cards · pp. 2–241</p><div class="progress"><i style="width:${learned/cards.length*100}%"></i></div><div class="row sub"><span>Started ${learned} / ${cards.length}</span><button class="btn outline" id="explore">Browse library →</button></div></section></div><div class="stats">${Object.keys(labels).map((s,i)=>`<div class="stat"><span><i class="dot ${s}"></i>${labels[s]}</span><strong>${counts[i].toLocaleString()}</strong></div>`).join('')}</div><section class="panel"><div class="section-head"><h2>Choose your study range</h2></div>${controls()}<div class="row"><span class="sub">In range: ${selected().length} words</span><button id="start" class="btn">Practice this range →</button></div></section><section style="margin-top:30px"><div class="section-head"><h2>Words to revisit</h2></div>${pending.length?pending.slice(0,5).map(c=>row(c)).join(''):'<div class="panel sub">No reviews due</div>'}</section>`}
+function home(){const pending=cards.filter(due),counts=Object.keys(labels).map(s=>cards.filter(c=>status(rec(c))===s).length),learned=cards.length-counts[0];return title('Today')+`${bookmarkCard()}<div class="hero"><section class="panel feature"><h2>Review</h2><div class="big">${pending.length}<span style="font-size:14px;margin-left:12px">words due for review</span></div><button class="btn" id="review">Start today’s review ↗</button><div class="bridge"></div></section><section class="panel"><h2 style="font-family:Georgia;font-size:32px;margin-top:18px">THE BRIDGE</h2><p class="sub">${cards.length.toLocaleString()} cards · pp. 2–241</p><div class="progress"><i style="width:${learned/cards.length*100}%"></i></div><div class="row sub"><span>Started ${learned} / ${cards.length}</span><button class="btn outline" id="explore">Browse library →</button></div></section></div><div class="stats">${Object.keys(labels).map((s,i)=>`<div class="stat"><span><i class="dot ${s}"></i>${labels[s]}</span><strong>${counts[i].toLocaleString()}</strong></div>`).join('')}</div><section class="panel"><div class="section-head"><h2>Choose your study range</h2></div>${controls()}<div class="row"><span class="sub">In range: ${selected().length} words</span><button id="start" class="btn">Practice this range →</button></div>${weeklyGoalPanel()}</section><section style="margin-top:30px"><div class="section-head"><h2>Words to revisit</h2></div>${pending.length?pending.slice(0,5).map(c=>row(c)).join(''):'<div class="panel sub">No reviews due</div>'}</section>`}
 function study(){return title(view==='quiz'?'Practice':'Flashcards')+(practiceResults&&view==='quiz'?'<div class="actions"><span>Library results</span><button id="clearPracticeResults" class="btn outline">Clear results scope</button></div>':controls())+`<div class="actions"><button class="btn ${mode==='new'?'':'outline'}" id="allStudy">Practice this range</button><button class="btn ${mode==='due'?'':'outline'}" id="dueStudy">Due words only</button><span class="sub">${selected().length} words in range</span></div>${view==='quiz'?`<div class="actions practice-modes" role="group" aria-label="Practice mode"><button class="btn ${practiceKind==='chinese'?'':'outline'}" data-practice="chinese">Chinese → English (${Object.keys(offlineTranslations).length} cards)</button><button class="btn ${practiceKind==='definition'?'':'outline'}" data-practice="definition">Definition → English</button><button class="btn ${practiceKind==='sentence'?'':'outline'}" data-practice="sentence">Sentence blank → English</button></div>`:''}<div id="studyBody" class="card-area${view==='quiz'?' quiz-card':''}"></div>`}
 function weeklyRoundSummary(){
  const week=currentWeek();
