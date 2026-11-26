@@ -320,29 +320,43 @@ function currentWeek(){
  }
  return {day,goal,done,goalCards,...weeklyPlan(goal,attempts,day)};
 }
+function weeklyGoalRange(initial=''){
+ if(initial)return cards.filter(card=>card.word.trimStart().toUpperCase().startsWith(initial));
+ return matchingCards(cards,records,{...filters,search:'',initial:'',order:''},status);
+}
 function weeklyGoalPanel(){
  const week=currentWeek();
  const current=week.schedule.find(item=>item.date===week.day);
- const rangeSize=selected().length;
+ const rangeSize=weeklyGoalRange().length;
  return `<section class="weekly-goal">
   <h2>Weekly goal</h2>
   <form id="weeklyGoalForm" class="weekly-goal-form">
-   <label>Words this week <input name="words" type="number" min="1" max="${rangeSize}" placeholder="${rangeSize}" ${rangeSize?'':'disabled'}></label>
-   <button class="btn outline" ${rangeSize?'':'disabled'}>Set range as weekly goal</button>
+   <select name="initial" aria-label="Weekly goal scope">
+    <option value="">Selected range</option>
+    ${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}">All ${letter} words</option>`).join('')}
+   </select>
+   <span id="weeklyRangeCount" class="sub">${rangeSize} words</span>
+   <button class="btn outline" ${rangeSize?'':'disabled'}>Set weekly goal</button>
   </form>
-  ${week.goal?`<div class="weekly-summary"><strong>${week.completed} / ${week.goal} words</strong><span class="sub">${week.goalCards.length} words in saved range</span><span>${week.completed>=week.goal?'✓ Goal reached':current.done+' / '+week.todayTarget+' today'}</span></div>
+  ${week.goal?`<div class="weekly-summary"><strong>${week.completed} / ${week.goal} words</strong><span class="sub">${weeklyGoal.initial?'All '+esc(weeklyGoal.initial)+' words':week.goalCards.length+' words in saved range'}</span><span>${week.completed>=week.goal?'✓ Goal reached':current.done+' / '+week.todayTarget+' today'}</span></div>
   <progress value="${Math.min(week.completed,week.goal)}" max="${week.goal}" aria-label="Weekly progress"></progress>
   <ol class="weekly-days">${week.schedule.map((item,index)=>`<li ${item.date===week.day?'aria-current="date"':''}><span>${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]}</span><strong>${item.done}/${item.target}</strong></li>`).join('')}</ol>
   ${week.completed<week.goal&&week.todayTarget>current.done?'<button class="btn" id="startWeeklyTask">Start today’s task</button>':''}`:''}
  </section>`;
 }
 function bindWeeklyGoal(){
- $('#weeklyGoalForm').onsubmit=event=>{
+ const form=$('#weeklyGoalForm');
+ form.elements.initial.onchange=()=>{
+  const size=weeklyGoalRange(form.elements.initial.value).length;
+  $('#weeklyRangeCount').textContent=size+' words';
+  form.querySelector('button').disabled=!size;
+ };
+ form.onsubmit=event=>{
   event.preventDefault();
-  const range=selected();
-  const words=Number(event.currentTarget.elements.words.value)||range.length;
-  if(!Number.isInteger(words)||words<1||words>range.length)return;
-  const goal={week:weekDates()[0],words,cardIds:range.map(card=>card.id)};
+  const initial=form.elements.initial.value;
+  const range=weeklyGoalRange(initial);
+  if(!range.length)return;
+  const goal={week:weekDates()[0],words:range.length,cardIds:range.map(card=>card.id),initial};
   try{localStorage.setItem(weeklyGoalKey,JSON.stringify(goal));weeklyGoal=goal;render();}
   catch{toast('Could not save goal.');}
  };
