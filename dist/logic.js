@@ -20,13 +20,14 @@ export function weekDates(day=today()){
  while(days.length<7)days.push(followingDay(days.at(-1)));
  return days;
 }
-export function weeklyPlan(goal,attempts,day=today()){
+export function weeklyPlan(goal,attempts,day=today(),studyDays=[0,1,2,3,4,5,6]){
  const days=weekDates(day);
  const counts=days.map(date=>attempts.filter(attempt=>attempt===date).length);
  const completed=counts.reduce((total,count)=>total+count,0);
  let remaining=Math.max(0,goal-completed);
  const schedule=days.map((date,index)=>{
-  const extra=date<day?0:Math.ceil(remaining/(days.length-index));
+  const eligible=days.slice(index).filter((value,offset)=>value>=day&&studyDays.includes(index+offset)).length;
+  const extra=date<day||!studyDays.includes(index)||!eligible?0:Math.ceil(remaining/eligible);
   remaining-=extra;
   return {date,done:counts[index],target:counts[index]+extra};
  });

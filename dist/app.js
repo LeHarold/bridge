@@ -29,7 +29,7 @@ function toast(message,aboveTools=false){
  toastTimer=setTimeout(()=>box.style.display='none',3000);
 }
 async function put(r){await new Promise((resolve,reject)=>{const t=db.transaction('words','readwrite');t.objectStore('words').put(r);t.oncomplete=resolve;t.onerror=()=>reject(t.error)});records[r.id]=r}
-function selected(){if(view==='quiz'&&practiceResults)return practiceResults;filters=validFilters(filters,cards,records);return matchingCards(cards,records,{...filters,initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations)}
+function selected(){if(view==='quiz'&&practiceResults)return practiceResults;filters=validFilters(filters,cards,records);return matchingCards(cards,records,{...filters,search:view==='library'?filters.search:'',initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations)}
 function persistFilters(){try{sessionStorage.setItem('bridge-filters-book-pages-v2',JSON.stringify(filters))}catch{}}
 function due(c){const r=rec(c);return r.due&&r.due<=today()&&r.streak<3}
 function tagFilterOptions(){
@@ -59,10 +59,40 @@ function toggleTranslation(c){let t=translations.get(c.id);if(!t){t={open:false,
 let rangePlayback=null;
 let backgroundAudioUrl;
 let backgroundAudioScope;
+let backgroundLoad=null;
 let backgroundSpeed=1;
 let backgroundAudioChapters=[];
 let followAudioWord=false;
 let showPlaybackCaptions=true;
+async function reviewAudioFile(path,save=false){
+ if(!('caches' in window))return fetch(path);
+ const cache=await caches.open('bridge-downloaded-review-audio-v1');
+ const saved=await cache.match(path);
+ if(saved)return saved;
+ const response=await fetch(path);
+ if(save&&response.ok)await cache.put(path,response.clone());
+ return response;
+}
+async function downloadReviewAudio(event){
+ const button=event.currentTarget, words=selected();
+ if(!words.length)return;
+ button.disabled=true;
+ try{
+  if(!('caches' in window))throw Error();
+  const timings=await reviewAudioFile('review-audio/timings.json',true);
+  if(!timings.ok)throw Error();
+  for(let i=0;i<words.length;i+=12){
+   if(!button.isConnected)return;
+   await Promise.all(words.slice(i,i+12).map(async card=>{
+    const response=await reviewAudioFile('review-audio/'+encodeURIComponent(card.id)+'.mp3',true);
+    if(!response.ok)throw Error();
+   }));
+   button.textContent='Downloading '+Math.min(i+12,words.length)+' / '+words.length;
+  }
+  toast('Review audio saved for offline use');
+ }catch{toast('Download incomplete. Try again while online.')}
+ finally{button.disabled=false;button.textContent='Download range audio'}
+}
 async function prepareBackgroundAudio(){
  const button=$('#prepareBackgroundAudio');
  const player=$('#backgroundAudio');
@@ -74,45 +104,74 @@ async function prepareBackgroundAudio(){
   else player.pause();
   return;
  }
+ if(backgroundLoad?.scope===scope)return;
+ const load={scope};
+ backgroundLoad=load;
  player.pause();
+ player.onended=updateBackgroundAudioLabel;
  button.disabled=true;
  button.textContent='Preparing audio…';
  syncToolsAudio();
+ const active=()=>button.isConnected&&backgroundLoad===load;
  try{
-  const timingResponse=await fetch('review-audio/timings.json');
+  const timingResponse=await reviewAudioFile('review-audio/timings.json');
   if(!timingResponse.ok)throw Error('Audio timings unavailable');
   const timings=await timingResponse.json();
   const parts=[];
-  for(let offset=0;offset<words.length;offset+=12){
-   if(!button.isConnected)return;
-   parts.push(...await Promise.all(words.slice(offset,offset+12).map(async card=>{
-    const response=await fetch('review-audio/'+encodeURIComponent(card.id)+'.mp3');
+  async function fetchBatch(offset){
+   const batch=await Promise.all(words.slice(offset,offset+12).map(async card=>{
+    const response=await reviewAudioFile('review-audio/'+encodeURIComponent(card.id)+'.mp3');
     if(!response.ok)throw Error('Audio unavailable');
     return response.blob();
-   })));
-   button.textContent='Preparing audio · '+Math.min(offset+12,words.length)+' / '+words.length;
+   }));
+   parts.push(...batch);
   }
-  if(!button.isConnected)return;
+  function loadTrack(blobs,position=0){
+   if(backgroundAudioUrl)URL.revokeObjectURL(backgroundAudioUrl);
+   backgroundAudioUrl=URL.createObjectURL(new Blob(blobs,{type:'audio/mpeg'}));
+   let start=0;
+   backgroundAudioChapters=blobs.map((part,index)=>{
+    const card=words[index];
+    const chapter={card,start,sections:audioSections(card),offsets:timings[card.id]||[0]};
+    start+=part.size/8000;
+    return chapter;
+   });
+   player.src=backgroundAudioUrl;
+   if(position)player.currentTime=position;
+   applyBackgroundSpeed(player);
+   player.hidden=false;
+   updateBackgroundProgress();
+   return start;
+  }
+  await fetchBatch(0);
+  if(!active())return;
   stopRangePlayback();
-  if(backgroundAudioUrl)URL.revokeObjectURL(backgroundAudioUrl);
-  backgroundAudioUrl=URL.createObjectURL(new Blob(parts,{type:'audio/mpeg'}));
-  player.src=backgroundAudioUrl;
-  applyBackgroundSpeed(player);
   backgroundAudioScope=scope;
-  let start=0;
-  // Review MP3s use 64 kbps and omit per-file metadata.
-  backgroundAudioChapters=parts.map((part,index)=>{
-   const card=words[index];
-   const chapter={card,start,sections:audioSections(card),offsets:timings[card.id]||[0]};
-   start+=part.size/8000;
-   return chapter;
-  });
-  updateBackgroundProgress();
-  player.hidden=false;
-  await playBackgroundAudio(player);
- }catch{if(button.isConnected)toast('Could not prepare audio. Check your connection.')}
+  const firstEnd=loadTrack(parts);
+  if(words.length>parts.length){
+   const rest=(async()=>{
+    for(let offset=12;offset<words.length;offset+=12){
+     if(!active())return false;
+     await fetchBatch(offset);
+    }
+    return true;
+   })().catch(()=>false);
+   player.onended=async()=>{
+    updateBackgroundAudioLabel();
+    const ready=await rest;
+    if(!active()||!player.ended)return;
+    if(!ready){toast('Could not load the rest of this range.');return}
+    player.onended=updateBackgroundAudioLabel;
+    loadTrack(parts,firstEnd);
+    await playBackgroundAudio(player);
+   };
+  }
+  button.disabled=false;
+  updateBackgroundAudioLabel();
+  void playBackgroundAudio(player);
+ }catch{if(active())toast('Could not prepare audio. Check your connection.')}
  finally{
-  if(button.isConnected){
+  if(active()){
    updateBackgroundAudioLabel();
    button.disabled=!selected().length;
    syncToolsAudio();
@@ -318,7 +377,7 @@ function currentWeek(){
   const attempt=[record.weeklyAttempt,record.lastAttempt].find(date=>dates.includes(date)&&date<=day);
   if(attempt){done.add(card.id);attempts.push(attempt);}
  }
- return {day,goal,done,goalCards,...weeklyPlan(goal,attempts,day)};
+ return {day,goal,done,goalCards,...weeklyPlan(goal,attempts,day,active?.days)};
 }
 function weeklyGoalRange(initial=''){
  if(initial)return cards.filter(card=>card.word.trimStart().toUpperCase().startsWith(initial));
@@ -335,7 +394,8 @@ function weeklyGoalPanel(){
     <option value="">Selected range</option>
     ${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}">All ${letter} words</option>`).join('')}
    </select>
-   <span id="weeklyRangeCount" class="sub">${rangeSize} words</span>
+   ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day,i)=>`<label><input type="checkbox" name="weekDay" value="${i}" ${(weeklyGoal?.days||[0,1,2,3,4,5,6]).includes(i)?'checked':''}> ${day}</label>`).join('')}
+   <span id="weeklyRangeCount" class="sub">${rangeSize} words</span><output id="weeklyPreview"></output>
    <button class="btn outline" ${rangeSize?'':'disabled'}>Set weekly goal</button>
   </form>
   ${week.goal?`<div class="weekly-summary"><strong>${week.completed} / ${week.goal} words</strong><span class="sub">${weeklyGoal.initial?'All '+esc(weeklyGoal.initial)+' words':week.goalCards.length+' words in saved range'}</span><span>${week.completed>=week.goal?'✓ Goal reached':current.done+' / '+week.todayTarget+' today'}</span></div>
@@ -346,17 +406,23 @@ function weeklyGoalPanel(){
 }
 function bindWeeklyGoal(){
  const form=$('#weeklyGoalForm');
- form.elements.initial.onchange=()=>{
+ const chosenDays=()=>[...form.querySelectorAll('[name=weekDay]:checked')].map(input=>Number(input.value));
+ function preview(){
   const size=weeklyGoalRange(form.elements.initial.value).length;
   $('#weeklyRangeCount').textContent=size+' words';
-  form.querySelector('button').disabled=!size;
- };
+  const days=chosenDays(), day=today();
+  const remaining=weekDates(day).filter((date,i)=>date>=day&&days.includes(i)).length;
+  $('#weeklyPreview').textContent=remaining&&size?'Up to '+Math.ceil(size/remaining)+' words per selected day':'';
+  form.querySelector('button').disabled=!size||!remaining;
+ }
+ form.onchange=preview;
+ preview();
  form.onsubmit=event=>{
   event.preventDefault();
   const initial=form.elements.initial.value;
   const range=weeklyGoalRange(initial);
   if(!range.length)return;
-  const goal={week:weekDates()[0],words:range.length,cardIds:range.map(card=>card.id),initial};
+  const goal={week:weekDates()[0],words:range.length,cardIds:range.map(card=>card.id),initial,days:chosenDays()};
   try{localStorage.setItem(weeklyGoalKey,JSON.stringify(goal));weeklyGoal=goal;render();}
   catch{toast('Could not save goal.');}
  };
@@ -370,11 +436,36 @@ function bindWeeklyGoal(){
   $('#studyBody')?.scrollIntoView({block:'start'});
  });
 }
-function home(){const pending=cards.filter(due),counts=Object.keys(labels).map(s=>cards.filter(c=>status(rec(c))===s).length),learned=cards.length-counts[0];return title('Today')+`${bookmarkCard()}<div class="hero"><section class="panel feature"><h2>Review</h2><div class="big">${pending.length}<span style="font-size:14px;margin-left:12px">words due for review</span></div><button class="btn" id="review">Start today’s review ↗</button><div class="bridge"></div></section><section class="panel"><h2 style="font-family:Georgia;font-size:32px;margin-top:18px">THE BRIDGE</h2><p class="sub">${cards.length.toLocaleString()} cards · pp. 2–241</p><div class="progress"><i style="width:${learned/cards.length*100}%"></i></div><div class="row sub"><span>Started ${learned} / ${cards.length}</span><button class="btn outline" id="explore">Browse library →</button></div></section></div><div class="stats">${Object.keys(labels).map((s,i)=>`<div class="stat"><span><i class="dot ${s}"></i>${labels[s]}</span><strong>${counts[i].toLocaleString()}</strong></div>`).join('')}</div><section class="panel"><div class="section-head"><h2>Choose your study range</h2></div>${controls()}<div class="row"><span class="sub">In range: ${selected().length} words</span><button id="start" class="btn">Practice this range →</button></div>${weeklyGoalPanel()}</section><section style="margin-top:30px"><div class="section-head"><h2>Words to revisit</h2></div>${pending.length?pending.slice(0,5).map(c=>row(c)).join(''):'<div class="panel sub">No reviews due</div>'}</section>`}
-function study(){return title(view==='quiz'?'Practice':'Flashcards')+(practiceResults&&view==='quiz'?'<div class="actions"><span>Library results</span><button id="clearPracticeResults" class="btn outline">Clear results scope</button></div>':controls())+`<div class="actions"><button class="btn ${mode==='new'?'':'outline'}" id="allStudy">Practice this range</button><button class="btn ${mode==='due'?'':'outline'}" id="dueStudy">Due words only</button><span class="sub">${selected().length} words in range</span></div>${view==='quiz'?`<div class="actions practice-modes" role="group" aria-label="Practice mode"><button class="btn ${practiceKind==='chinese'?'':'outline'}" data-practice="chinese">Chinese → English (${Object.keys(offlineTranslations).length} cards)</button><button class="btn ${practiceKind==='definition'?'':'outline'}" data-practice="definition">Definition → English</button><button class="btn ${practiceKind==='sentence'?'':'outline'}" data-practice="sentence">Sentence blank → English</button></div>`:''}<div id="studyBody" class="card-area${view==='quiz'?' quiz-card':''}"></div>`}
+function home(){const pending=cards.filter(due),counts=Object.keys(labels).map(s=>cards.filter(c=>status(rec(c))===s).length),learned=cards.length-counts[0];return title('Today')+`${bookmarkCard()}<div class="hero"><section class="panel feature"><h2>Review</h2><div class="big">${pending.length}<span style="font-size:14px;margin-left:12px">words due for review</span></div><button class="btn" id="review">Start today’s review ↗</button><div class="bridge"></div></section><section class="panel"><h2 style="font-family:Georgia;font-size:32px;margin-top:18px">THE BRIDGE</h2><p class="sub">${cards.length.toLocaleString()} cards · pp. 2–241</p><div class="progress"><i style="width:${learned/cards.length*100}%"></i></div><div class="row sub"><span>Started ${learned} / ${cards.length}</span><button class="btn outline" id="explore">Browse library →</button></div></section></div><div class="stats">${Object.keys(labels).map((s,i)=>`<div class="stat"><span><i class="dot ${s}"></i>${labels[s]}</span><strong>${counts[i].toLocaleString()}</strong></div>`).join('')}</div><section class="panel"><div class="section-head"><h2>Choose your study range</h2></div>${controls()}<div class="row"><span class="sub">pp. ${filters.from}–${filters.to}${filters.tag?' · '+esc(filters.tag):''} · ${selected().length} words</span><button id="start" class="btn">Practice this range →</button></div>${weeklyGoalPanel()}</section><section style="margin-top:30px"><div class="section-head"><h2>Words to revisit</h2></div>${pending.length?pending.slice(0,5).map(c=>row(c)).join(''):'<div class="panel sub">No reviews due</div>'}</section>`}
+const roundKey='bridge-practice-round-v1';
+function readRound(){try{return JSON.parse(localStorage.getItem(roundKey)||'null')}catch{return null}}
+function saveRound(){
+ if(view!=='quiz'||!queue.length)return;
+ try{localStorage.setItem(roundKey,JSON.stringify({queue:queue.map(c=>c.id),pool:choicePool.map(c=>c.id),scope:practiceResults?.map(c=>c.id),index,mode,practiceKind,answers:[...quizAnswers]}))}catch{}
+}
+function restoreRound(){
+ const saved=readRound(), byId=new Map(cards.map(c=>[c.id,c]));
+ if(!saved?.queue?.length||saved.queue.some(id=>!byId.has(id)))return;
+ queue=saved.queue.map(id=>byId.get(id));
+ choicePool=saved.pool.map(id=>byId.get(id)).filter(Boolean);
+ practiceResults=saved.scope?.map(id=>byId.get(id)).filter(Boolean)||null;
+ ({index,mode,practiceKind}=saved);
+ quizAnswers=new Map(saved.answers);
+ missedCards=[...quizAnswers].filter(([,r])=>r.chosen!==r.question.correctId).map(([i])=>queue[i]);
+ locked=false;
+ render(null,true);
+ $('#studyBody')?.scrollIntoView({block:'start'});
+}
+function scopeBar(){
+ const range=[`pp. ${filters.from}–${filters.to}`,cards.find(c=>c.id===filters.end)?.word,filters.tag,labels[filters.state]].filter(Boolean).join(' · ');
+ return `<div class="actions"><span class="sub">${esc(practiceResults&&view==='quiz'?'Library results':range)} · ${selected().filter(c=>mode!=='due'||due(c)).length} words</span><button class="btn outline" id="resetStudy">Reset scope</button>${view==='quiz'&&readRound()?.queue.length?'<button class="btn outline" id="resumeRound">Resume last practice</button>':''}</div>`;
+}
+function study(){return title(view==='quiz'?'Practice':'Flashcards')+scopeBar()+(practiceResults&&view==='quiz'?'<div class="actions"><span>Library results</span><button id="clearPracticeResults" class="btn outline">Clear results scope</button></div>':controls())+`<div class="actions"><button class="btn ${mode==='new'?'':'outline'}" id="allStudy">Practice this range</button><button class="btn ${mode==='due'?'':'outline'}" id="dueStudy">Due words only</button><span class="sub">${selected().length} words in range</span></div>${view==='quiz'?`<div class="actions practice-modes" role="group" aria-label="Practice mode"><button class="btn ${practiceKind==='chinese'?'':'outline'}" data-practice="chinese">Chinese → English (${Object.keys(offlineTranslations).length} cards)</button><button class="btn ${practiceKind==='definition'?'':'outline'}" data-practice="definition">Definition → English</button><button class="btn ${practiceKind==='sentence'?'':'outline'}" data-practice="sentence">Sentence blank → English</button></div>`:''}<div id="studyBody" class="card-area${view==='quiz'?' quiz-card':''}"></div>`}
+window.addEventListener('pagehide',()=>{if(quizAnswers.size||index)saveRound()});
 function weeklyRoundSummary(){
  const week=currentWeek();
- return week.goal?`<p class="sub">${week.completed} / ${week.goal} weekly words</p><button class="btn outline" id="openWeeklyGoal">Weekly goal</button>`:'';
+ const score=view==='quiz'&&quizAnswers.size?`<p class="sub">${Math.round(100*(quizAnswers.size-missedCards.length)/quizAnswers.size)}% correct · ${missedCards.length} missed</p>`:'';
+ return score+(week.goal?`<p class="sub">${week.completed} / ${week.goal} weekly words</p><button class="btn outline" id="openWeeklyGoal">Weekly goal</button>`:'');
 }
 function showCard(){const host=$('#studyBody');if(!host)return;const c=queue[index];if(!c){host.innerHTML=`<div class="panel empty"><h2>${queue.length?'Round complete.':'No words match your selection.'}</h2><button id="restart" class="btn">Start a fresh round</button>${queue.length?weeklyRoundSummary():''}${view==='quiz'&&queue.length?previousQuestionButton():''}${view==='quiz'&&missedCards.length?` <button id="retryMissed" class="btn outline">Retry missed (${missedCards.length})</button>`:''}</div>`;$('#restart').onclick=()=>start(mode);$('#openWeeklyGoal')?.addEventListener('click',()=>navigateTo('home'));$('#previousQuestion')?.addEventListener('click',previousQuestion);$('#retryMissed')?.addEventListener('click',()=>start(mode,missedCards));return}const r=rec(c),q=view==='quiz'?quizAnswers.get(index)?.question??makeChoice(c,choicePool,practiceKind,offlineTranslations[c.id],Math.random,practiceSentences[c.id]||[]):question(c,index%2===1);currentChoice=view==='quiz'?q:null;
 if(view==='quiz'&&!q){
@@ -393,6 +484,7 @@ function previousQuestion(){
 function next(){moveToQuestion(index+1)}
 function moveToQuestion(position){
  index=position;
+ saveRound();
  flipped=false;
  locked=false;
  showCard();
@@ -403,7 +495,7 @@ function moveToQuestion(position){
 async function rate(ok){if(locked)return;locked=true;try{await put(grade(rec(queue[index]),ok));next()}catch(e){locked=false;toast('Could not save. Export a backup and try again.')}}
 function norm(s){return s.toLowerCase().trim().replace(/[’‘]/g,"'").replace(/\s+/g,' ').replace(/[.!?]$/,'')}
 async function check(force){if(locked)return;const c=queue[index],answer=$('#answer').value;const alternatives=question(c,index%2===1).answers.flatMap(a=>a.split(/\s*[=;]\s*/)).map(norm);const ok=force===false?false:alternatives.includes(norm(answer));locked=true;try{await put(grade(rec(c),ok));$('#submit').disabled=true;$('#dontKnow').disabled=true;$('#answer').disabled=true;$('#feedback').innerHTML=`<div class="feedback ${ok?'':'bad'}"><strong>${ok?'Correct ✓':'Incorrect'}</strong><br>Answer: ${esc(c.word)} ${phoneticsHtml(c)}<br>Definition: ${esc(c.meaning)}<br>Examples: <div class="feedback-examples">${examplesHtml(c)}</div></div>`;$('#grading').innerHTML='<button id="next" class="btn">Next word →</button>';$('#next').onclick=next}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
-async function checkChoice(chosen){if(locked)return;const c=queue[index],q=currentChoice;if(!q)return;const ok=chosen===q.correctId;locked=true;try{await put(grade(rec(c),ok));if(view!=='quiz'||q!==currentChoice||c!==queue[index])return;if(!ok)missedCards.push(c);quizAnswers.set(index,{question:q,chosen});showQuizAnswer(c,q,chosen)}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
+async function checkChoice(chosen){if(locked)return;const c=queue[index],q=currentChoice;if(!q)return;const ok=chosen===q.correctId;locked=true;try{await put(grade(rec(c),ok));if(view!=='quiz'||q!==currentChoice||c!==queue[index])return;if(!ok)missedCards.push(c);quizAnswers.set(index,{question:q,chosen});saveRound();showQuizAnswer(c,q,chosen)}catch(e){locked=false;toast('Could not save. This answer has not been recorded.')}}
 function showQuizAnswer(c,q,chosen){
  locked=true;
  const ok=chosen===q.correctId;
@@ -419,6 +511,7 @@ function showQuizAnswer(c,q,chosen){
  $('#previousQuestion').onclick=previousQuestion;
  $('#grading').classList.add('quiz-graded');
  $('#feedback').setAttribute('tabindex','0');
+ $('#feedback').insertAdjacentHTML('beforeend','<p class="sub">Tap blank space to continue</p>');
 }
 document.addEventListener('click',event=>{
  if(event.defaultPrevented||view!=='quiz'||!quizAnswers.has(index))return;
@@ -489,7 +582,7 @@ function libraryEntries(list,tags){return list.map(c=>`<div class="library-entry
  ${quickTags(c,tags)}<div id="editor-${c.id}"></div>
 </div></div>`).join('')}
 function libraryResults(){const list=selected();return `<div class="panel" id="libraryEntries">${libraryEntries(list.slice(0,visible),quickTagList())||'<p class="empty">No matching words</p>'}</div>${list.length>visible?'<div id="libraryLoadMarker" aria-hidden="true"></div>':''}`}
-function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><select id="libraryOrder" aria-label="Book order"><option value="">Book order · Forward</option><option value="reverse" ${filters.order==='reverse'?'selected':''}>Book order · Reverse</option></select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen offline</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><select id="backgroundSpeed" aria-label="Background audio speed"><option value="1" ${backgroundSpeed===1?'selected':''}>1×</option><option value="0.9" ${backgroundSpeed===0.9?'selected':''}>0.9×</option><option value="0.8" ${backgroundSpeed===0.8?'selected':''}>0.8×</option></select><button id="toggleAudioCaptions" type="button" class="btn outline" aria-pressed="${showPlaybackCaptions}">Captions</button><button id="followAudioWord" type="button" class="btn outline" aria-pressed="${followAudioWord}">Follow playback</button><button id="rangeAudioStatus" type="button" class="btn outline" title="Go to current word" hidden><strong id="rangeAudioHeading"></strong><span id="rangeAudioCaption"></span></button><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
+function library(){const list=selected();return title('Word library')+controls()+`<div class="filters"><input id="search" type="search" placeholder="Search English or Traditional Chinese" aria-label="Search library" value="${esc(filters.search)}"><select id="initial" aria-label="Starts with"><option value="">Starts with: Any</option>${[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter=>`<option value="${letter}" ${letter===filters.initial?'selected':''}>${letter}</option>`).join('')}</select><select id="libraryOrder" aria-label="Book order"><option value="">Book order · Forward</option><option value="reverse" ${filters.order==='reverse'?'selected':''}>Book order · Reverse</option></select><button id="clearFilters" class="btn outline">Reset filters</button><button id="listenRange" class="btn outline" ${list.length?'':'disabled'}>Listen offline</button><button id="prepareBackgroundAudio" class="btn outline" ${list.length?'':'disabled'}>Listen to results</button><button id="downloadReviewAudio" class="btn outline">Download range audio</button><audio id="backgroundAudio" controls hidden aria-label="Background review audio"></audio><select id="backgroundSpeed" aria-label="Background audio speed"><option value="1" ${backgroundSpeed===1?'selected':''}>1×</option><option value="0.9" ${backgroundSpeed===0.9?'selected':''}>0.9×</option><option value="0.8" ${backgroundSpeed===0.8?'selected':''}>0.8×</option></select><button id="toggleAudioCaptions" type="button" class="btn outline" aria-pressed="${showPlaybackCaptions}">Captions</button><button id="followAudioWord" type="button" class="btn outline" aria-pressed="${followAudioWord}">Follow playback</button><button id="rangeAudioStatus" type="button" class="btn outline" title="Go to current word" hidden><strong id="rangeAudioHeading"></strong><span id="rangeAudioCaption"></span></button><button id="practiceResults" class="btn" ${list.length?'':'disabled'}>Practice results</button><button id="printRange" class="btn" ${list.length?'':'disabled'}>Print selected range</button><span id="resultCount" class="sub">${list.length} results</span></div><div id="libraryResults">${libraryResults()}</div>`}
 let libraryObserver;
 function observeLibraryEnd(){
  libraryObserver?.disconnect();
@@ -535,14 +628,15 @@ function bindLibraryResults(){observeLibraryEnd();bindLibraryAudio();document.qu
  });
 }
 function refreshLibrary(){$('#libraryResults').innerHTML=libraryResults();const count=selected().length;$('#resultCount').textContent=count+' results';$('#printRange').disabled=!count;$('#practiceResults').disabled=!count;$('#listenRange').disabled=!count;if(!$('#prepareBackgroundAudio').textContent.startsWith('Preparing audio'))$('#prepareBackgroundAudio').disabled=!count;bindLibraryResults();syncToolsAudio()}
-function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations);return selected().length}
+function preparePrint(){const root=$('#printRoot');root.innerHTML=printHtml(cards,records,{...filters,search:view==='library'?filters.search:'',initial:view==='library'?filters.initial:'',order:view==='library'?filters.order:''},status,offlineTranslations);return selected().length}
 window.addEventListener('beforeprint',preparePrint);
 
 function start(m='new',retry=null){mode=m;if(!retry)choicePool=selected();const source=retry??choicePool.filter(c=>m!=='due'||due(c));missedCards=[];quizAnswers.clear();queue=view==='quiz'?shuffle(source.filter(c=>practiceKind==='chinese'?!!offlineTranslations[c.id]?.word:practiceKind==='sentence'?!!cloze(c,practiceSentences[c.id]||[]):true)):shuffle(source);index=0;flipped=false;locked=false;showCard()}
-function render(studyBatch=null){libraryObserver?.disconnect();stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindWeeklyGoal();bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#libraryResults').onclick=playFromClickedWord;$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#toggleAudioCaptions').onclick=toggleAudioCaptions;$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#libraryOrder').onchange=e=>{stopRangePlayback();$('#backgroundAudio')?.pause();filters.order=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});start(mode,studyBatch)}}
+function render(studyBatch=null,resuming=false){backgroundLoad=null;libraryObserver?.disconnect();stopRangePlayback();if(backgroundAudioUrl){URL.revokeObjectURL(backgroundAudioUrl);backgroundAudioUrl=undefined;}filters=validFilters(filters,cards,records);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#content').innerHTML=view==='home'?home():view==='library'?library():study();bindFilters();if(view==='home'){bindWeeklyGoal();bindBookmarkButtons();$('#resumeReading')?.addEventListener('click',resumeReading);$('#review').onclick=()=>{view='quiz';mode='due';render()};$('#explore').onclick=()=>{view='library';render()};$('#start').onclick=()=>{view='quiz';mode='new';render()}}else if(view==='library'){$('#libraryResults').onclick=playFromClickedWord;$('#downloadReviewAudio').onclick=downloadReviewAudio;$('#prepareBackgroundAudio').onclick=prepareBackgroundAudio;$('#listenRange').onclick=toggleRangePlayback;$('#backgroundAudio').onplay=()=>{stopRangePlayback();speaker.stop();updateBackgroundAudioLabel()};$('#backgroundSpeed').onchange=e=>{backgroundSpeed=Number(e.target.value);applyBackgroundSpeed($('#backgroundAudio'));syncToolsAudio()};$('#backgroundAudio').onpause=updateBackgroundAudioLabel;$('#backgroundAudio').onended=updateBackgroundAudioLabel;$('#backgroundAudio').ontimeupdate=updateBackgroundProgress;$('#rangeAudioStatus').onclick=()=>jumpToPlayingWord();$('#toggleAudioCaptions').onclick=toggleAudioCaptions;$('#followAudioWord').onclick=e=>{followAudioWord=!followAudioWord;e.currentTarget.setAttribute('aria-pressed',String(followAudioWord));syncToolsAudio();if(followAudioWord)jumpToPlayingWord(false);else document.querySelector('.library-entry.is-playing-word')?.classList.remove('is-playing-word')};$('#search').oninput=e=>{stopRangePlayback();filters.search=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#libraryOrder').onchange=e=>{stopRangePlayback();$('#backgroundAudio')?.pause();filters.order=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#initial').onchange=e=>{stopRangePlayback();filters.initial=e.target.value;visible=80;persistFilters();refreshLibrary()};$('#clearFilters').onclick=()=>{filters={from:2,to:241,end:'',tag:'',state:'',search:''};visible=80;persistFilters();render();$('#search').focus()};$('#practiceResults').onclick=()=>{practiceResults=selected();view='quiz';mode='new';render();$('#studyBody').scrollIntoView({block:'start'});};$('#printRange').onclick=()=>{if(preparePrint())window.print();else toast('No words selected for printing.')};bindLibraryResults()}else{$('#resetStudy').onclick=()=>{practiceResults=null;filters={from:2,to:241,end:'',tag:'',state:'',search:''};persistFilters();render()};$('#resumeRound')?.addEventListener('click',restoreRound);$('#clearPracticeResults')?.addEventListener('click',()=>{practiceResults=null;render()});$('#allStudy').onclick=()=>start('new');$('#dueStudy').onclick=()=>start('due');document.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>{practiceKind=b.dataset.practice;render()});if(resuming)showCard();else start(mode,studyBatch)}}
 
 const pageOrder=['home','cards','quiz','library'];
 function navigateTo(page,batch=null){
+ if(quizAnswers.size||index)saveRound();
  speaker.stop();
  practiceResults=null;
  view=page;
@@ -571,8 +665,8 @@ document.addEventListener('touchend',event=>{
  if(nextPage)navigateTo(nextPage);
 },{passive:true});
 $('#date').textContent=new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',weekday:'long'}).format(new Date())+' · '+period().toUpperCase();
-$('#export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,book:'THE BRIDGE',records:Object.values(records)},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='bridge-progress-'+today()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
-$('#import').onclick=()=>$('#file').click();$('#file').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||data.book!=='THE BRIDGE'||!Array.isArray(data.records))throw Error();const ids=new Set(cards.map(c=>c.id));for(const r of data.records){if(!ids.has(r.id)||!Number.isInteger(r.streak)||r.streak<0||r.streak>3||!Array.isArray(r.tags)||r.tags.some(t=>typeof t!=='string')||['due','lastCorrect','lastAttempt'].some(k=>r[k]!=null&&!/^\d{4}-\d{2}-\d{2}$/.test(r[k])))throw Error()}const tx=db.transaction('words','readwrite');data.records.forEach(r=>tx.objectStore('words').put(r));await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=rej});data.records.forEach(r=>records[r.id]=r);toast('Progress imported and merged');render()}catch(e){toast('Import failed. Choose a valid progress backup.')}$('#file').value=''};
+$('#export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({version:2,book:'THE BRIDGE',records:Object.values(records),bookmark,weeklyGoal},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='bridge-progress-'+today()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('#import').onclick=()=>$('#file').click();$('#file').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(![1,2].includes(data.version)||data.book!=='THE BRIDGE'||!Array.isArray(data.records))throw Error();const ids=new Set(cards.map(c=>c.id));for(const r of data.records){if(!ids.has(r.id)||!Number.isInteger(r.streak)||r.streak<0||r.streak>3||!Array.isArray(r.tags)||r.tags.some(t=>typeof t!=='string')||['due','lastCorrect','lastAttempt'].some(k=>r[k]!=null&&!/^\d{4}-\d{2}-\d{2}$/.test(r[k])))throw Error()}if(data.version===2){if(data.bookmark&&!ids.has(data.bookmark.id))throw Error();const g=data.weeklyGoal;if(g&&(!Number.isInteger(g.words)||g.words<1||g.words>cards.length||!/^\d{4}-\d{2}-\d{2}$/.test(g.week)||(g.cardIds&&(!Array.isArray(g.cardIds)||g.cardIds.some(id=>!ids.has(id))))||(g.days&&(!Array.isArray(g.days)||g.days.some(d=>!Number.isInteger(d)||d<0||d>6)))))throw Error()}const tx=db.transaction('words','readwrite');data.records.forEach(r=>tx.objectStore('words').put(r));await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=rej});data.records.forEach(r=>records[r.id]=r);if(data.version===2){if(data.bookmark){localStorage.setItem(BOOKMARK_KEY,JSON.stringify(data.bookmark));bookmark=data.bookmark}if(data.weeklyGoal){localStorage.setItem(weeklyGoalKey,JSON.stringify(data.weeklyGoal));weeklyGoal=data.weeklyGoal}}toast('Progress imported and merged');render()}catch(e){toast('Import failed. Choose a valid progress backup.')}$('#file').value=''};
 try{[cards,offlineTranslations,practiceSentences]=await Promise.all([fetch('cards.json').then(r=>{if(!r.ok)throw Error();return r.json()}),fetch('offline-translations.json').then(r=>r.ok?r.json():{}).catch(()=>({})),fetch('practice-sentences.json').then(r=>r.ok?r.json():{}).catch(()=>({}))]);db=await new Promise((resolve,reject)=>{const r=indexedDB.open('the-bridge-study',1);r.onupgradeneeded=()=>r.result.createObjectStore('words',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const rows=await new Promise((resolve,reject)=>{const r=db.transaction('words').objectStore('words').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=reject});rows.forEach(r=>records[r.id]=r);try{filters={...filters,...JSON.parse(sessionStorage.getItem('bridge-filters-book-pages-v2')||'{}')}}catch{}$('#dbState').textContent='● Device database connected';render();setInterval(()=>{if(view==='home')render()},60000)}catch(e){$('#content').innerHTML='<div class="panel"><h1>Unable to open your learning data</h1><p>Use a regular browser window, allow this site to store data, then refresh.</p></div>';$('#dbState').textContent='Database disconnected'}
 
 
