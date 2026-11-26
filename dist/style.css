@@ -107,3 +107,13 @@
 
 #toast.above-tools{left:auto;right:22px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 58px);z-index:65;pointer-events:none}
 @media(max-width:600px){#toast.above-tools{right:14px}.quiz-card #grading.quiz-graded{min-height:50px}.quiz-card #grading.quiz-graded #previousQuestion{position:fixed;z-index:55;left:max(14px,env(safe-area-inset-left));bottom:max(14px,env(safe-area-inset-bottom));min-height:44px;background:#fffef9;box-shadow:0 4px 18px #183d3633}}
+
+.weekly-goal{margin:12px 0;padding:14px}
+.weekly-goal h2{margin-bottom:8px}
+.weekly-goal-form,.weekly-summary{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:7px}
+.weekly-goal-form input{width:86px;padding:6px;margin-left:4px}
+.weekly-summary{justify-content:space-between;font-size:14px}
+.weekly-goal progress{width:100%;height:10px;accent-color:#507d39}
+.weekly-days{list-style:none;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:8px 0;padding:0}
+.weekly-days li{display:grid;text-align:center;gap:3px;padding:4px 0;font-size:11px;border-radius:6px}
+.weekly-days li[aria-current=date]{background:#e5f1d9;color:#254327}
